@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chess.com</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="/images/favicon.png" />
+    <link rel="stylesheet" href="/stylesheets/style.css" />
+  </head>
+  <body>
+    <!-- Landing Screen -->
+    <div
+      id="landing-screen"
+      class="w-full min-h-screen bg-zinc-900 flex items-center justify-center flex-col gap-8"
+    >
+      <div class="text-center">
+        <h1 class="text-6xl font-bold text-white mb-4">♔ Chess Game ♚</h1>
+        <p class="text-xl text-zinc-400 mb-8">
+          Challenge your opponent in a classic chess match
+        </p>
+      </div>
+
+      <button
+        id="play-button"
+        class="bg-green-600 hover:bg-green-700 text-white font-bold text-2xl px-12 py-6 rounded-lg shadow-lg transform transition hover:scale-105 active:scale-95"
+      >
+        Play Game
+      </button>
+
+      <div class="text-center text-zinc-500 text-sm">
+        <p>10 minutes per player • Real-time multiplayer</p>
+      </div>
+    </div>
+
+    <!-- Finding Match Screen -->
+    <div
+      id="finding-match-screen"
+      class="w-full min-h-screen bg-zinc-900 flex items-center justify-center flex-col gap-8"
+      style="display: none"
+    >
+      <div class="text-center">
+        <h2 id="finding-match-text" class="text-4xl font-bold text-white mb-6">
+          Finding a match...
+        </h2>
+        <p id="finding-match-subtext" class="text-xl text-zinc-400 mb-8">
+          Please wait
+        </p>
+      </div>
+
+      <!-- Animated Loading Spinner -->
+      <div class="loading-spinner"></div>
+
+      <div class="text-center text-zinc-500 text-sm">
+        <p id="finding-match-status">Connecting you with an opponent</p>
+      </div>
+    </div>
+
+    <!-- Countdown Screen -->
+    <div
+      id="countdown-screen"
+      class="w-full min-h-screen bg-zinc-900 flex items-center justify-center flex-col gap-8"
+      style="display: none"
+    >
+      <div class="text-center">
+        <h2 class="text-3xl font-bold text-white mb-6">Game Starting In</h2>
+        <div
+          id="countdown-number"
+          class="text-9xl font-bold text-green-500 animate-pulse"
+        >
+          3
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Area (Hidden Initially) -->
+    <div
+      id="game-area"
+      class="w-full min-h-screen bg-zinc-900 flex items-center justify-center p-8"
+      style="display: none"
+    >
+      <div class="game-container flex gap-8 items-start max-w-7xl">
+        <!-- Left Side Panel -->
+        <div class="left-panel flex flex-col gap-6 w-80">
+          <!-- Turn display -->
+          <div
+            class="turn-display font-bold text-white text-center text-2xl bg-zinc-800 px-6 py-4 rounded-lg shadow-lg"
+          >
+            White's turn
+          </div>
+
+          <!-- White Player Info -->
+          <div class="player-info bg-zinc-800 rounded-lg p-4 shadow-lg">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <div class="text-white font-bold text-lg">⚪ White</div>
+                <div
+                  id="white-check-status"
+                  class="check-badge"
+                  style="display: none"
+                >
+                  CHECK
+                </div>
+              </div>
+              <div class="white-score text-white font-bold text-xl">0</div>
+            </div>
+            <div class="timer-container">
+              <div class="timer-label text-zinc-400 text-xs mb-1">
+                Time Remaining
+              </div>
+              <div
+                id="white-timer"
+                class="timer text-white text-3xl font-mono font-bold bg-zinc-700 px-4 py-3 rounded-lg text-center"
+              >
+                10:00
+              </div>
+            </div>
+            <div class="mt-4">
+              <div class="text-zinc-400 text-xs mb-2">Captured Pieces</div>
+              <div
+                id="white-captured"
+                class="captured-pieces bg-zinc-700 px-3 py-2 rounded-lg min-h-[60px] flex gap-1 flex-wrap items-center justify-center"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Black Player Info -->
+          <div class="player-info bg-zinc-800 rounded-lg p-4 shadow-lg">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <div class="text-white font-bold text-lg">⚫ Black</div>
+                <div
+                  id="black-check-status"
+                  class="check-badge"
+                  style="display: none"
+                >
+                  CHECK
+                </div>
+              </div>
+              <div class="black-score text-white font-bold text-xl">0</div>
+            </div>
+            <div class="timer-container">
+              <div class="timer-label text-zinc-400 text-xs mb-1">
+                Time Remaining
+              </div>
+              <div
+                id="black-timer"
+                class="timer text-white text-3xl font-mono font-bold bg-zinc-700 px-4 py-3 rounded-lg text-center"
+              >
+                10:00
+              </div>
+            </div>
+            <div class="mt-4">
+              <div class="text-zinc-400 text-xs mb-2">Captured Pieces</div>
+              <div
+                id="black-captured"
+                class="captured-pieces bg-zinc-700 px-3 py-2 rounded-lg min-h-[60px] flex gap-1 flex-wrap items-center justify-center"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center - Chessboard -->
+        <div class="board-container flex flex-col items-center gap-4">
+          <div class="chessboard w-[600px] h-[600px] shadow-2xl"></div>
+
+          <!-- Message display -->
+          <div
+            class="message font-bold text-red-500 text-center text-2xl min-h-[40px]"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- External Scripts -->
+    <script
+      src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+      integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"
+      integrity="sha512-xRllwz2gdZciIB+AkEbeq+gVhX8VB8XsfqeFbUh+SzHlN96dEduwtTuVuc2u9EROlmW9+yhRlxjif66ORpsgVA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script src="/javascripts/script.js"></script>
+  </body>
+</html>
