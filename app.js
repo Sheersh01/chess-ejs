@@ -121,6 +121,7 @@ io.on("connection", (uniqueSocket) => {
     // Second player joins - assign the remaining color
     const remainingColor = !players.white ? "white" : "black";
     const playerRole = remainingColor === "white" ? "w" : "b";
+    const otherColor = remainingColor === "white" ? "black" : "white";
 
     players[remainingColor] = uniqueSocket.id;
     uniqueSocket.emit("playerRole", playerRole);
@@ -130,6 +131,16 @@ io.on("connection", (uniqueSocket) => {
     uniqueSocket.emit("capturedPiecesUpdate", capturedPieces);
 
     console.log(`Second player assigned ${remainingColor}`);
+
+    // Notify the other player that opponent has joined/reconnected
+    if (players[otherColor]) {
+      io.to(players[otherColor]).emit("opponentReconnected", {
+        color: remainingColor.charAt(0).toUpperCase() + remainingColor.slice(1),
+        message: `${
+          remainingColor.charAt(0).toUpperCase() + remainingColor.slice(1)
+        } player has joined!`,
+      });
+    }
 
     // Both players are now connected - start countdown
     console.log("Both players connected. Starting countdown...");
@@ -159,11 +170,37 @@ io.on("connection", (uniqueSocket) => {
 
     // Remove player from the game if they disconnect
     if (uniqueSocket.id === players.white) {
+      // Notify black player that white disconnected
+      if (players.black) {
+        io.to(players.black).emit("opponentDisconnected", {
+          color: "White",
+          message:
+            "White player disconnected. Waiting for reconnection or new opponent...",
+        });
+      }
       delete players.white;
-      resetGame();
+
+      // Stop timer if game was in progress
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
     } else if (uniqueSocket.id === players.black) {
+      // Notify white player that black disconnected
+      if (players.white) {
+        io.to(players.white).emit("opponentDisconnected", {
+          color: "Black",
+          message:
+            "Black player disconnected. Waiting for reconnection or new opponent...",
+        });
+      }
       delete players.black;
-      resetGame();
+
+      // Stop timer if game was in progress
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
     }
   });
 

@@ -27,6 +27,40 @@ let selectedSquare = null;
 let gameStarted = false;
 let pendingPromotion = null; // Store pending promotion move
 
+// Notification system
+const showNotification = (message, type = "info", duration = 3000) => {
+  // Remove any existing notification
+  const existingNotification = document.querySelector(".game-notification");
+  if (existingNotification) {
+    existingNotification.remove();
+  }
+
+  // Create notification element
+  const notification = document.createElement("div");
+  notification.className = `game-notification ${type}`;
+  notification.textContent = message;
+
+  // Add to document
+  document.body.appendChild(notification);
+
+  // Trigger animation
+  setTimeout(() => {
+    notification.classList.add("show");
+  }, 10);
+
+  // Auto remove after duration (unless it's a persistent type)
+  if (type !== "disconnect") {
+    setTimeout(() => {
+      notification.classList.remove("show");
+      setTimeout(() => {
+        notification.remove();
+      }, 300);
+    }, duration);
+  }
+
+  return notification;
+};
+
 // Handle Play button click
 playButton.addEventListener("click", () => {
   // Hide landing screen and show finding match screen
@@ -249,6 +283,7 @@ const handleMove = (sourceSquare, targetSquare) => {
     renderBoard();
   } else {
     console.log("Invalid move attempted");
+    showNotification("Invalid move! Please try a legal move.", "error", 2500);
   }
 };
 
@@ -359,6 +394,7 @@ const handlePromotion = (pieceType) => {
     renderBoard();
   } else {
     console.log("Invalid promotion move");
+    showNotification("Invalid promotion move!", "error", 2500);
   }
 
   pendingPromotion = null;
@@ -561,6 +597,59 @@ const initializeSocketListeners = () => {
 
   socket.on("capturedPiecesUpdate", (capturedPieces) => {
     updateCapturedPieces(capturedPieces);
+  });
+
+  socket.on("opponentDisconnected", (data) => {
+    console.log("Opponent disconnected:", data);
+
+    // Show persistent notification about disconnection
+    const notification = showNotification(
+      `${data.color} player disconnected. You can wait for them to reconnect or refresh to find a new opponent.`,
+      "disconnect"
+    );
+
+    // Also show in the message area
+    messageElement.innerText = data.message;
+    messageElement.style.display = "block";
+    messageElement.style.backgroundColor = "#f59e0b";
+    messageElement.style.color = "white";
+
+    // Add a close button to the notification
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "✕";
+    closeBtn.className = "notification-close";
+    closeBtn.onclick = () => {
+      notification.classList.remove("show");
+      setTimeout(() => notification.remove(), 300);
+    };
+    notification.appendChild(closeBtn);
+  });
+
+  socket.on("opponentReconnected", (data) => {
+    console.log("Opponent reconnected:", data);
+
+    // Clear any disconnect messages
+    const disconnectNotification = document.querySelector(
+      ".game-notification.disconnect"
+    );
+    if (disconnectNotification) {
+      disconnectNotification.classList.remove("show");
+      setTimeout(() => disconnectNotification.remove(), 300);
+    }
+
+    // Clear message area if it has disconnect info
+    if (messageElement.innerText.includes("disconnected")) {
+      messageElement.innerText = "";
+      messageElement.style.display = "none";
+      messageElement.style.backgroundColor = "";
+    }
+
+    // Show success notification
+    showNotification(
+      `${data.color} player has joined the game!`,
+      "success",
+      3000
+    );
   });
 };
 
