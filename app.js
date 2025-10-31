@@ -305,6 +305,54 @@ io.on("connection", (uniqueSocket) => {
       uniqueSocket.emit("invalidMove", move); // Inform the client of an error
     }
   });
+
+  // Handle resign events
+  uniqueSocket.on("resign", (data) => {
+    console.log("Player resigned:", data);
+
+    // Determine who resigned and who won
+    let resignedColor, winner, winnerSocketId;
+
+    if (data.color === "w" && uniqueSocket.id === players.white) {
+      resignedColor = "w";
+      winner = "b";
+      winnerSocketId = players.black;
+    } else if (data.color === "b" && uniqueSocket.id === players.black) {
+      resignedColor = "b";
+      winner = "w";
+      winnerSocketId = players.white;
+    } else {
+      return; // Invalid resign attempt
+    }
+
+    const resignedColorName = resignedColor === "w" ? "White" : "Black";
+    const winnerColorName = winner === "w" ? "White" : "Black";
+
+    // Stop the timer
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+
+    // Notify all clients about the resignation
+    io.emit("gameResigned", {
+      resignedColor: resignedColor,
+      winner: winner,
+      message: `${resignedColorName} resigned. ${winnerColorName} wins!`,
+    });
+
+    io.emit(
+      "gameMessage",
+      `Game Over! ${resignedColorName} resigned. ${winnerColorName} wins!`
+    );
+
+    console.log(`${resignedColorName} resigned. ${winnerColorName} wins!`);
+
+    // Reset the game after 5 seconds
+    setTimeout(() => {
+      resetGame();
+    }, 5000);
+  });
 });
 
 const PORT = process.env.PORT || 3000; // ✅ Render expects process.env.PORT

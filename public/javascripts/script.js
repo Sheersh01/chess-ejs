@@ -19,6 +19,7 @@ const findingMatchText = document.getElementById("finding-match-text");
 const findingMatchSubtext = document.getElementById("finding-match-subtext");
 const findingMatchStatus = document.getElementById("finding-match-status");
 const countdownNumber = document.getElementById("countdown-number");
+const resignButton = document.getElementById("resign-button");
 
 let draggedPiece = null;
 let sourceSquare = null;
@@ -72,6 +73,30 @@ playButton.addEventListener("click", () => {
     socket = io();
     initializeSocketListeners();
     gameStarted = true;
+  }
+});
+
+// Handle Resign button click
+resignButton.addEventListener("click", () => {
+  if (!socket || !gameStarted || !playerRole) {
+    return;
+  }
+
+  // Show confirmation dialog
+  const colorName = playerRole === "w" ? "White" : "Black";
+  const confirmed = confirm(
+    `Are you sure you want to resign as ${colorName}?\n\nThis will end the game and your opponent will win.`
+  );
+
+  if (confirmed) {
+    // Emit resign event to server
+    socket.emit("resign", { color: playerRole });
+
+    // Hide resign button
+    resignButton.style.display = "none";
+
+    // Show notification
+    showNotification("You have resigned from the game.", "info", 3000);
   }
 });
 
@@ -519,6 +544,12 @@ const initializeSocketListeners = () => {
   socket.on("gameStart", () => {
     countdownScreen.style.display = "none";
     gameArea.style.display = "flex";
+
+    // Show resign button for players (not spectators)
+    if (playerRole) {
+      resignButton.style.display = "block";
+    }
+
     renderBoard();
   });
 
@@ -559,6 +590,24 @@ const initializeSocketListeners = () => {
     messageElement.style.display = "block";
   });
 
+  socket.on("gameResigned", (data) => {
+    // Hide resign button
+    resignButton.style.display = "none";
+
+    // Show game over message
+    messageElement.innerText = data.message;
+    messageElement.style.display = "block";
+
+    // Show notification
+    const winnerColor = data.winner === "w" ? "White" : "Black";
+    const resignedColor = data.resignedColor === "w" ? "White" : "Black";
+    showNotification(
+      `${resignedColor} resigned. ${winnerColor} wins!`,
+      "info",
+      5000
+    );
+  });
+
   socket.on("turnChange", (turn) => {
     messageElement.innerText = "";
     messageElement.style.display = "none";
@@ -581,6 +630,9 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("timeOut", (data) => {
+    // Hide resign button when game ends
+    resignButton.style.display = "none";
+
     messageElement.innerText = data.message;
     messageElement.style.display = "block";
 

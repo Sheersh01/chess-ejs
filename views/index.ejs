@@ -164,6 +164,17 @@
         <div class="board-container flex flex-col items-center gap-4">
           <div class="chessboard w-[600px] h-[600px] shadow-2xl"></div>
 
+          <!-- Game Controls -->
+          <div class="flex gap-4 items-center">
+            <button
+              id="resign-button"
+              class="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-lg shadow-lg transform transition hover:scale-105 active:scale-95"
+              style="display: none"
+            >
+              🏳️ Resign
+            </button>
+          </div>
+
           <!-- Message display -->
           <div
             class="message font-bold text-red-500 text-center text-2xl min-h-[40px]"
