@@ -840,13 +840,13 @@ const initializeSocketListeners = () => {
     playerRole = role;
   });
 
-  socket.on("spectatorRole", () => {
-    playerRole = null;
-
-    findingMatchScreen.style.display = "none";
-    gameArea.style.display = "flex";
-
-    renderBoard();
+  socket.on("waitingForMatch", () => {
+    findingMatchScreen.style.display = "flex";
+    gameArea.style.display = "none";
+    findingMatchText.textContent = "Waiting for opponent...";
+    findingMatchSubtext.textContent = "Looking for an available player";
+    findingMatchStatus.textContent =
+      "You will be matched with the next available player";
   });
 
   socket.on("waitingForOpponent", () => {

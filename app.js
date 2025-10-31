@@ -10,7 +10,7 @@ const io = socket(server);
 // Game state management for multiple concurrent games
 const games = new Map();
 const socketToGame = new Map(); // Track which game each socket is in
-let waitingPlayer = null; // Player waiting for an opponent
+const waitingPlayers = []; // Queue of players waiting for a match
 
 // Game statistics
 const gameStats = {
@@ -26,15 +26,6 @@ const gameStats = {
 
 // Rate limiting for moves
 const moveRateLimits = new Map();
-
-// Legacy compatibility - for the default game
-const chess = new Chess();
-let players = {}; // To store player socket IDs
-let currentPlayer = "w"; // Current player's turn
-let playerScores = { w: 0, b: 0 }; // Store scores for white and black
-let playerTimers = { white: 600, black: 600 }; // 10 minutes = 600 seconds for each player
-let timerInterval = null; // Interval for countdown
-let capturedPieces = { white: [], black: [] }; // Track captured pieces by each player
 
 // Piece point values
 const pieceValues = {
@@ -52,11 +43,14 @@ const generateGameId = () => {
 };
 
 // Helper function to create a new game
-const createNewGame = (gameId) => {
+const createNewGame = (gameId, whiteSocketId, blackSocketId) => {
   const game = {
     id: gameId,
     chess: new Chess(),
-    players: {},
+    players: {
+      white: whiteSocketId,
+      black: blackSocketId,
+    },
     timers: { white: 600, black: 600 },
     scores: { w: 0, b: 0 },
     capturedPieces: { white: [], black: [] },
@@ -66,7 +60,138 @@ const createNewGame = (gameId) => {
   };
   games.set(gameId, game);
   gameStats.totalGames++;
+
+  // Map sockets to game
+  socketToGame.set(whiteSocketId, gameId);
+  socketToGame.set(blackSocketId, gameId);
+
   return game;
+};
+
+// Helper function to start game timer for a specific game
+const startGameTimer = (gameId) => {
+  const game = games.get(gameId);
+  if (!game) return;
+
+  if (game.timerInterval) {
+    clearInterval(game.timerInterval);
+  }
+
+  console.log(`Starting timer for game ${gameId}...`);
+
+  game.timerInterval = setInterval(() => {
+    const currentPlayerColor = game.chess.turn() === "w" ? "white" : "black";
+
+    if (game.timers[currentPlayerColor] > 0) {
+      game.timers[currentPlayerColor]--;
+
+      // Broadcast timer update to players in this game
+      io.to(game.players.white).emit("timerUpdate", game.timers);
+      io.to(game.players.black).emit("timerUpdate", game.timers);
+
+      // Check if time has run out
+      if (game.timers[currentPlayerColor] === 0) {
+        clearInterval(game.timerInterval);
+        game.timerInterval = null;
+
+        const loser = currentPlayerColor === "white" ? "White" : "Black";
+        const winner = currentPlayerColor === "white" ? "Black" : "White";
+
+        console.log(
+          `${loser} ran out of time in game ${gameId}! ${winner} wins!`
+        );
+
+        io.to(game.players.white).emit(
+          "gameMessage",
+          `Game Over! ${winner} wins by timeout! Game will restart in 5 seconds...`
+        );
+        io.to(game.players.black).emit(
+          "gameMessage",
+          `Game Over! ${winner} wins by timeout! Game will restart in 5 seconds...`
+        );
+
+        io.to(game.players.white).emit("timeOut", {
+          message: `${winner} wins! ${loser} ran out of time!`,
+          winner: winner,
+          loser: loser,
+        });
+        io.to(game.players.black).emit("timeOut", {
+          message: `${winner} wins! ${loser} ran out of time!`,
+          winner: winner,
+          loser: loser,
+        });
+
+        gameStats.timeouts++;
+        gameStats.completedGames++;
+        if (winner === "White") {
+          gameStats.whiteWins++;
+        } else {
+          gameStats.blackWins++;
+        }
+
+        // Reset game after timeout
+        setTimeout(() => {
+          resetGame(gameId);
+        }, 5000);
+      }
+    }
+  }, 1000);
+};
+
+// Reset game function for specific game
+const resetGame = (gameId) => {
+  const game = games.get(gameId);
+  if (!game) return;
+
+  game.chess.reset();
+  game.scores = { w: 0, b: 0 };
+  game.timers = { white: 600, black: 600 };
+  game.capturedPieces = { white: [], black: [] };
+
+  if (game.timerInterval) {
+    clearInterval(game.timerInterval);
+    game.timerInterval = null;
+  }
+
+  // Broadcast reset state to both players
+  io.to(game.players.white).emit("boardstate", game.chess.fen());
+  io.to(game.players.white).emit("scoreUpdate", game.scores);
+  io.to(game.players.white).emit("timerUpdate", game.timers);
+  io.to(game.players.white).emit("capturedPiecesUpdate", game.capturedPieces);
+  io.to(game.players.white).emit(
+    "moveHistory",
+    game.chess.history({ verbose: true })
+  );
+
+  io.to(game.players.black).emit("boardstate", game.chess.fen());
+  io.to(game.players.black).emit("scoreUpdate", game.scores);
+  io.to(game.players.black).emit("timerUpdate", game.timers);
+  io.to(game.players.black).emit("capturedPiecesUpdate", game.capturedPieces);
+  io.to(game.players.black).emit(
+    "moveHistory",
+    game.chess.history({ verbose: true })
+  );
+
+  io.to(game.players.white).emit("gameMessage", "New game started! Good luck!");
+  io.to(game.players.black).emit("gameMessage", "New game started! Good luck!");
+
+  // Start countdown
+  io.to(game.players.white).emit("startCountdown");
+  io.to(game.players.black).emit("startCountdown");
+
+  let countdown = 3;
+  const countdownInterval = setInterval(() => {
+    io.to(game.players.white).emit("countdownTick", countdown);
+    io.to(game.players.black).emit("countdownTick", countdown);
+    countdown--;
+
+    if (countdown < 0) {
+      clearInterval(countdownInterval);
+      io.to(game.players.white).emit("gameStart");
+      io.to(game.players.black).emit("gameStart");
+      startGameTimer(gameId);
+    }
+  }, 1000);
 };
 
 // Helper function to clean up a game
@@ -85,115 +210,6 @@ const cleanupGame = (gameId) => {
 const getGameForSocket = (socketId) => {
   const gameId = socketToGame.get(socketId);
   return gameId ? games.get(gameId) : null;
-};
-
-// Start the timer countdown (legacy - for backward compatibility)
-const startTimer = () => {
-  if (timerInterval) {
-    clearInterval(timerInterval);
-  }
-
-  console.log("Starting timer...");
-
-  timerInterval = setInterval(() => {
-    const currentPlayerColor = chess.turn() === "w" ? "white" : "black";
-
-    if (playerTimers[currentPlayerColor] > 0) {
-      playerTimers[currentPlayerColor]--;
-
-      // Broadcast timer update to all clients
-      io.emit("timerUpdate", playerTimers);
-
-      // Log every 10 seconds
-      if (playerTimers[currentPlayerColor] % 10 === 0) {
-        console.log(
-          `Timer update - White: ${playerTimers.white}s, Black: ${playerTimers.black}s`
-        );
-      }
-
-      // Check if time has run out
-      if (playerTimers[currentPlayerColor] === 0) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-
-        const loser = currentPlayerColor === "white" ? "White" : "Black";
-        const winner = currentPlayerColor === "white" ? "Black" : "White";
-
-        console.log(`${loser} ran out of time! ${winner} wins!`);
-
-        io.emit(
-          "gameMessage",
-          `Game Over! ${winner} wins by timeout! Game will restart in 5 seconds...`
-        );
-        io.emit("timeOut", {
-          message: `${winner} wins! ${loser} ran out of time!`,
-          winner: winner,
-          loser: loser,
-        });
-
-        gameStats.timeouts++;
-        gameStats.completedGames++;
-        if (winner === "White") {
-          gameStats.whiteWins++;
-        } else {
-          gameStats.blackWins++;
-        }
-
-        // Reset game after timeout
-        setTimeout(() => {
-          // Check if both players are still connected before resetting
-          const whitePlayer = players.white;
-          const blackPlayer = players.black;
-
-          if (whitePlayer && blackPlayer) {
-            console.log("Both players still connected. Resetting game...");
-            resetGame();
-            io.emit("gameMessage", "New game started! Good luck!");
-
-            console.log("Starting countdown for new game...");
-            io.emit("startCountdown");
-
-            let countdown = 3;
-            const countdownInterval = setInterval(() => {
-              io.emit("countdownTick", countdown);
-              countdown--;
-
-              if (countdown < 0) {
-                clearInterval(countdownInterval);
-                io.emit("gameStart");
-                console.log("Starting timer after countdown...");
-                startTimer();
-              }
-            }, 1000);
-          }
-        }, 5000); // Give 5 seconds to see the result
-      }
-    }
-  }, 1000);
-};
-
-// Reset game function (keeps players connected)
-const resetGame = () => {
-  // Save current players before reset
-  const savedPlayers = { ...players };
-
-  chess.reset();
-  playerScores = { w: 0, b: 0 };
-  playerTimers = { white: 600, black: 600 };
-  capturedPieces = { white: [], black: [] };
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
-  }
-
-  // Restore players
-  players = savedPlayers;
-
-  io.emit("boardstate", chess.fen());
-  io.emit("scoreUpdate", playerScores);
-  io.emit("timerUpdate", playerTimers);
-  io.emit("capturedPiecesUpdate", capturedPieces);
-  io.emit("moveHistory", chess.history({ verbose: true })); // Reset move history
 };
 
 app.set("view engine", "ejs");
@@ -215,107 +231,114 @@ app.get("/stats", (req, res) => {
 io.on("connection", (uniqueSocket) => {
   console.log("A user connected:", uniqueSocket.id);
 
-  // Assign roles to the first two players (white/black)
-  if (!players.white && !players.black) {
-    // First player joins - randomly assign white or black
-    const randomColor = Math.random() < 0.5 ? "white" : "black";
-    const playerRole = randomColor === "white" ? "w" : "b";
+  // Check if there's a waiting player
+  if (waitingPlayers.length > 0) {
+    // Match with waiting player
+    const waitingPlayer = waitingPlayers.shift();
 
-    players[randomColor] = uniqueSocket.id;
-    uniqueSocket.emit("playerRole", playerRole);
-    uniqueSocket.emit("waitingForOpponent");
-    uniqueSocket.emit("boardstate", chess.fen());
-    uniqueSocket.emit("scoreUpdate", playerScores);
-    uniqueSocket.emit("timerUpdate", playerTimers);
-    uniqueSocket.emit("capturedPiecesUpdate", capturedPieces);
-    uniqueSocket.emit("moveHistory", chess.history({ verbose: true }));
+    // Randomly assign colors
+    const randomColor = Math.random() < 0.5;
+    const whitePlayer = randomColor ? waitingPlayer : uniqueSocket.id;
+    const blackPlayer = randomColor ? uniqueSocket.id : waitingPlayer;
 
-    console.log(`First player assigned ${randomColor}`);
-  } else if (!players.white || !players.black) {
-    // Second player joins - assign the remaining color
-    const remainingColor = !players.white ? "white" : "black";
-    const playerRole = remainingColor === "white" ? "w" : "b";
-    const otherColor = remainingColor === "white" ? "black" : "white";
+    // Create new game
+    const gameId = generateGameId();
+    const game = createNewGame(gameId, whitePlayer, blackPlayer);
 
-    players[remainingColor] = uniqueSocket.id;
-    uniqueSocket.emit("playerRole", playerRole);
-    uniqueSocket.emit("boardstate", chess.fen());
-    uniqueSocket.emit("scoreUpdate", playerScores);
-    uniqueSocket.emit("timerUpdate", playerTimers);
-    uniqueSocket.emit("capturedPiecesUpdate", capturedPieces);
-    uniqueSocket.emit("moveHistory", chess.history({ verbose: true }));
+    console.log(
+      `Match found! Game ${gameId} created: White=${whitePlayer}, Black=${blackPlayer}`
+    );
 
-    console.log(`Second player assigned ${remainingColor}`);
+    // Send initial game state to both players
+    io.to(whitePlayer).emit("playerRole", "w");
+    io.to(blackPlayer).emit("playerRole", "b");
 
-    // Notify the other player that opponent has joined/reconnected
-    if (players[otherColor]) {
-      io.to(players[otherColor]).emit("opponentReconnected", {
-        color: remainingColor.charAt(0).toUpperCase() + remainingColor.slice(1),
-        message: `${
-          remainingColor.charAt(0).toUpperCase() + remainingColor.slice(1)
-        } player has joined!`,
-      });
-    }
+    io.to(whitePlayer).emit("boardstate", game.chess.fen());
+    io.to(whitePlayer).emit("scoreUpdate", game.scores);
+    io.to(whitePlayer).emit("timerUpdate", game.timers);
+    io.to(whitePlayer).emit("capturedPiecesUpdate", game.capturedPieces);
+    io.to(whitePlayer).emit(
+      "moveHistory",
+      game.chess.history({ verbose: true })
+    );
 
-    // Both players are now connected - start countdown
-    console.log("Both players connected. Starting countdown...");
-    io.emit("startCountdown"); // Tell both players countdown is starting
+    io.to(blackPlayer).emit("boardstate", game.chess.fen());
+    io.to(blackPlayer).emit("scoreUpdate", game.scores);
+    io.to(blackPlayer).emit("timerUpdate", game.timers);
+    io.to(blackPlayer).emit("capturedPiecesUpdate", game.capturedPieces);
+    io.to(blackPlayer).emit(
+      "moveHistory",
+      game.chess.history({ verbose: true })
+    );
 
-    // Start 3-second countdown
+    // Start countdown
+    console.log(`Starting countdown for game ${gameId}...`);
+    io.to(whitePlayer).emit("startCountdown");
+    io.to(blackPlayer).emit("startCountdown");
+
     let countdown = 3;
     const countdownInterval = setInterval(() => {
-      io.emit("countdownTick", countdown);
+      io.to(whitePlayer).emit("countdownTick", countdown);
+      io.to(blackPlayer).emit("countdownTick", countdown);
       countdown--;
 
       if (countdown < 0) {
         clearInterval(countdownInterval);
-        io.emit("gameStart"); // Tell clients game is starting
-        startTimer(); // Start the game timer
+        io.to(whitePlayer).emit("gameStart");
+        io.to(blackPlayer).emit("gameStart");
+        startGameTimer(gameId);
       }
     }, 1000);
   } else {
-    uniqueSocket.emit("spectatorRole"); // Notify spectators
-    uniqueSocket.emit("boardstate", chess.fen()); // Send current board state to spectators
-    uniqueSocket.emit("timerUpdate", playerTimers); // Send current timers to spectators
-    uniqueSocket.emit("capturedPiecesUpdate", capturedPieces); // Send captured pieces
-    uniqueSocket.emit("moveHistory", chess.history({ verbose: true })); // Send move history
+    // No waiting player, add to queue
+    waitingPlayers.push(uniqueSocket.id);
+    uniqueSocket.emit("waitingForOpponent");
+    console.log(
+      `Player ${uniqueSocket.id} added to waiting queue. Queue length: ${waitingPlayers.length}`
+    );
   }
 
   uniqueSocket.on("disconnect", () => {
     console.log("User disconnected:", uniqueSocket.id);
 
-    // Remove player from the game if they disconnect
-    if (uniqueSocket.id === players.white) {
-      // Notify black player that white disconnected
-      if (players.black) {
-        io.to(players.black).emit("opponentDisconnected", {
-          color: "White",
-          message:
-            "White player disconnected. Waiting for reconnection or new opponent...",
-        });
-      }
-      delete players.white;
+    // Remove from waiting queue if present
+    const waitingIndex = waitingPlayers.indexOf(uniqueSocket.id);
+    if (waitingIndex !== -1) {
+      waitingPlayers.splice(waitingIndex, 1);
+      console.log(
+        `Player removed from waiting queue. Queue length: ${waitingPlayers.length}`
+      );
+      return;
+    }
 
-      // Stop timer if game was in progress
-      if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-      }
-    } else if (uniqueSocket.id === players.black) {
-      // Notify white player that black disconnected
-      if (players.white) {
-        io.to(players.white).emit("opponentDisconnected", {
-          color: "Black",
-          message:
-            "Black player disconnected. Waiting for reconnection or new opponent...",
-        });
-      }
-      delete players.black;
+    // Check if player was in a game
+    const gameId = socketToGame.get(uniqueSocket.id);
+    if (gameId) {
+      const game = games.get(gameId);
+      if (game) {
+        // Determine which player disconnected
+        const isWhite = game.players.white === uniqueSocket.id;
+        const isBlack = game.players.black === uniqueSocket.id;
 
-      // Stop timer if game was in progress
-      if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
+        if (isWhite || isBlack) {
+          const opponentId = isWhite ? game.players.black : game.players.white;
+          const disconnectedColor = isWhite ? "White" : "Black";
+
+          // Notify opponent
+          io.to(opponentId).emit("opponentDisconnected", {
+            color: disconnectedColor,
+            message: `${disconnectedColor} player disconnected. Game ended.`,
+          });
+
+          // Clean up game
+          socketToGame.delete(game.players.white);
+          socketToGame.delete(game.players.black);
+          cleanupGame(gameId);
+
+          console.log(
+            `Game ${gameId} ended due to ${disconnectedColor} player disconnect`
+          );
+        }
       }
     }
   });
@@ -323,6 +346,13 @@ io.on("connection", (uniqueSocket) => {
   // Handle move events
   uniqueSocket.on("move", (move) => {
     try {
+      // Get player's game
+      const gameId = socketToGame.get(uniqueSocket.id);
+      if (!gameId) return;
+
+      const game = games.get(gameId);
+      if (!game) return;
+
       // Rate limiting - prevent move spam
       const lastMove = moveRateLimits.get(uniqueSocket.id) || 0;
       const now = Date.now();
@@ -348,21 +378,23 @@ io.on("connection", (uniqueSocket) => {
       }
 
       // Ensure only the correct player can make a move
-      if (chess.turn() === "w" && uniqueSocket.id !== players.white) return;
-      if (chess.turn() === "b" && uniqueSocket.id !== players.black) return;
+      if (game.chess.turn() === "w" && uniqueSocket.id !== game.players.white)
+        return;
+      if (game.chess.turn() === "b" && uniqueSocket.id !== game.players.black)
+        return;
 
       // Attempt the move in Chess.js
-      const result = chess.move(move);
+      const result = game.chess.move(move);
       if (result) {
         // Determine the capturing player before turn switch
-        const capturingPlayer = chess.turn() === "w" ? "b" : "w"; // Opposite player of current turn
+        const capturingPlayer = game.chess.turn() === "w" ? "b" : "w"; // Opposite player of current turn
 
         // Check if a piece was captured
         if (result.captured) {
           const pieceValue = pieceValues[result.captured.toLowerCase()];
 
           // Update the score for the capturing player
-          playerScores[capturingPlayer] += pieceValue;
+          game.scores[capturingPlayer] += pieceValue;
 
           // Add captured piece to the capturing player's list
           const capturedPieceType = result.captured.toLowerCase();
@@ -370,49 +402,66 @@ io.on("connection", (uniqueSocket) => {
           const capturingPlayerKey =
             capturingPlayer === "w" ? "white" : "black";
 
-          capturedPieces[capturingPlayerKey].push({
+          game.capturedPieces[capturingPlayerKey].push({
             type: capturedPieceType,
             color: capturedPieceColor,
           });
 
-          // Emit updated scores and captured pieces to all clients
-          io.emit("scoreUpdate", playerScores); // Broadcast the updated scores
-          io.emit("capturedPiecesUpdate", capturedPieces); // Broadcast captured pieces
+          // Emit updated scores and captured pieces to both players
+          io.to(game.players.white).emit("scoreUpdate", game.scores);
+          io.to(game.players.black).emit("scoreUpdate", game.scores);
+          io.to(game.players.white).emit(
+            "capturedPiecesUpdate",
+            game.capturedPieces
+          );
+          io.to(game.players.black).emit(
+            "capturedPiecesUpdate",
+            game.capturedPieces
+          );
         }
 
-        // Switch turn after move
-        currentPlayer = chess.turn();
-
         // Emit the move and the updated board state
-        io.emit("move", move); // Broadcast the move to all clients
-        io.emit("boardstate", chess.fen()); // Broadcast the updated board state
+        io.to(game.players.white).emit("move", move);
+        io.to(game.players.black).emit("move", move);
+        io.to(game.players.white).emit("boardstate", game.chess.fen());
+        io.to(game.players.black).emit("boardstate", game.chess.fen());
 
-        // Emit move history to all clients
-        const moveHistory = chess.history({ verbose: true });
-        io.emit("moveHistory", moveHistory);
+        // Emit move history to both players
+        const moveHistory = game.chess.history({ verbose: true });
+        io.to(game.players.white).emit("moveHistory", moveHistory);
+        io.to(game.players.black).emit("moveHistory", moveHistory);
 
         // Log scores for debugging
-        console.log("Scores updated:", playerScores); // Log scores for debugging
+        console.log(`Game ${gameId} - Scores updated:`, game.scores);
 
         // Log special moves
         if (result.flags.includes("p")) {
           console.log(
-            `Pawn promotion: ${result.from} to ${result.to}, promoted to ${result.promotion}`
+            `Game ${gameId} - Pawn promotion: ${result.from} to ${result.to}, promoted to ${result.promotion}`
           );
         }
         if (result.flags.includes("k") || result.flags.includes("q")) {
           console.log(
-            `Castling: ${result.flags.includes("k") ? "Kingside" : "Queenside"}`
+            `Game ${gameId} - Castling: ${
+              result.flags.includes("k") ? "Kingside" : "Queenside"
+            }`
           );
         }
         if (result.flags.includes("e")) {
-          console.log(`En passant capture: ${result.from} to ${result.to}`);
+          console.log(
+            `Game ${gameId} - En passant capture: ${result.from} to ${result.to}`
+          );
         }
 
-        // Check for checkmate (no need to check for check, handled visually on client)
-        if (chess.isCheckmate()) {
-          const winner = currentPlayer === "w" ? "Black" : "White";
-          io.emit(
+        // Check for checkmate
+        if (game.chess.isCheckmate()) {
+          const winner = game.chess.turn() === "w" ? "Black" : "White";
+
+          io.to(game.players.white).emit(
+            "gameMessage",
+            `${winner} wins by checkmate! Game will restart in 3 seconds...`
+          );
+          io.to(game.players.black).emit(
             "gameMessage",
             `${winner} wins by checkmate! Game will restart in 3 seconds...`
           );
@@ -427,36 +476,20 @@ io.on("connection", (uniqueSocket) => {
           }
 
           // Stop timer and reset game after checkmate
-          clearInterval(timerInterval);
+          if (game.timerInterval) {
+            clearInterval(game.timerInterval);
+            game.timerInterval = null;
+          }
+
           setTimeout(() => {
-            // Check if both players are still connected before resetting
-            const whitePlayer = players.white;
-            const blackPlayer = players.black;
-
-            if (whitePlayer && blackPlayer) {
-              console.log("Both players still connected. Resetting game...");
-              resetGame();
-              io.emit("gameMessage", "New game started! Good luck!");
-
-              console.log("Starting countdown for new game...");
-              io.emit("startCountdown");
-
-              let countdown = 3;
-              const countdownInterval = setInterval(() => {
-                io.emit("countdownTick", countdown);
-                countdown--;
-
-                if (countdown < 0) {
-                  clearInterval(countdownInterval);
-                  io.emit("gameStart");
-                  console.log("Starting timer after countdown...");
-                  startTimer();
-                }
-              }, 1000);
-            }
+            resetGame(gameId);
           }, 3000);
-        } else if (chess.isStalemate()) {
-          io.emit(
+        } else if (game.chess.isStalemate()) {
+          io.to(game.players.white).emit(
+            "gameMessage",
+            "Game Over! Stalemate - It's a draw! Game will restart in 3 seconds..."
+          );
+          io.to(game.players.black).emit(
             "gameMessage",
             "Game Over! Stalemate - It's a draw! Game will restart in 3 seconds..."
           );
@@ -465,36 +498,20 @@ io.on("connection", (uniqueSocket) => {
           gameStats.draws++;
           gameStats.completedGames++;
 
-          clearInterval(timerInterval);
+          if (game.timerInterval) {
+            clearInterval(game.timerInterval);
+            game.timerInterval = null;
+          }
+
           setTimeout(() => {
-            // Check if both players are still connected before resetting
-            const whitePlayer = players.white;
-            const blackPlayer = players.black;
-
-            if (whitePlayer && blackPlayer) {
-              console.log("Both players still connected. Resetting game...");
-              resetGame();
-              io.emit("gameMessage", "New game started! Good luck!");
-
-              console.log("Starting countdown for new game...");
-              io.emit("startCountdown");
-
-              let countdown = 3;
-              const countdownInterval = setInterval(() => {
-                io.emit("countdownTick", countdown);
-                countdown--;
-
-                if (countdown < 0) {
-                  clearInterval(countdownInterval);
-                  io.emit("gameStart");
-                  console.log("Starting timer after countdown...");
-                  startTimer();
-                }
-              }, 1000);
-            }
+            resetGame(gameId);
           }, 3000);
-        } else if (chess.isDraw()) {
-          io.emit(
+        } else if (game.chess.isDraw()) {
+          io.to(game.players.white).emit(
+            "gameMessage",
+            "Game Over! Draw by insufficient material or repetition! Game will restart in 3 seconds..."
+          );
+          io.to(game.players.black).emit(
             "gameMessage",
             "Game Over! Draw by insufficient material or repetition! Game will restart in 3 seconds..."
           );
@@ -503,63 +520,51 @@ io.on("connection", (uniqueSocket) => {
           gameStats.draws++;
           gameStats.completedGames++;
 
-          clearInterval(timerInterval);
+          if (game.timerInterval) {
+            clearInterval(game.timerInterval);
+            game.timerInterval = null;
+          }
+
           setTimeout(() => {
-            // Check if both players are still connected before resetting
-            const whitePlayer = players.white;
-            const blackPlayer = players.black;
-
-            if (whitePlayer && blackPlayer) {
-              console.log("Both players still connected. Resetting game...");
-              resetGame();
-              io.emit("gameMessage", "New game started! Good luck!");
-
-              console.log("Starting countdown for new game...");
-              io.emit("startCountdown");
-
-              let countdown = 3;
-              const countdownInterval = setInterval(() => {
-                io.emit("countdownTick", countdown);
-                countdown--;
-
-                if (countdown < 0) {
-                  clearInterval(countdownInterval);
-                  io.emit("gameStart");
-                  console.log("Starting timer after countdown...");
-                  startTimer();
-                }
-              }, 1000);
-            }
+            resetGame(gameId);
           }, 3000);
         } else {
           // Emit the turn change
-          io.emit("turnChange", currentPlayer); // Emit the current player's turn
+          const currentPlayer = game.chess.turn();
+          io.to(game.players.white).emit("turnChange", currentPlayer);
+          io.to(game.players.black).emit("turnChange", currentPlayer);
         }
       } else {
         console.log("Invalid move:", move);
-        uniqueSocket.emit("invalidMove", move); // Inform the client of an invalid move
+        uniqueSocket.emit("invalidMove", move);
       }
     } catch (err) {
       console.log("Error handling move:", err);
-      uniqueSocket.emit("invalidMove", move); // Inform the client of an error
+      uniqueSocket.emit("invalidMove", move);
     }
   });
 
   // Handle resign events
   uniqueSocket.on("resign", (data) => {
-    console.log("Player resigned:", data);
+    const gameId = socketToGame.get(uniqueSocket.id);
+    if (!gameId) return;
+
+    const game = games.get(gameId);
+    if (!game) return;
+
+    console.log(`Game ${gameId} - Player resigned:`, data);
 
     // Determine who resigned and who won
     let resignedColor, winner, winnerSocketId;
 
-    if (data.color === "w" && uniqueSocket.id === players.white) {
+    if (data.color === "w" && uniqueSocket.id === game.players.white) {
       resignedColor = "w";
       winner = "b";
-      winnerSocketId = players.black;
-    } else if (data.color === "b" && uniqueSocket.id === players.black) {
+      winnerSocketId = game.players.black;
+    } else if (data.color === "b" && uniqueSocket.id === game.players.black) {
       resignedColor = "b";
       winner = "w";
-      winnerSocketId = players.white;
+      winnerSocketId = game.players.white;
     } else {
       return; // Invalid resign attempt
     }
@@ -568,9 +573,9 @@ io.on("connection", (uniqueSocket) => {
     const winnerColorName = winner === "w" ? "White" : "Black";
 
     // Stop the timer
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
+    if (game.timerInterval) {
+      clearInterval(game.timerInterval);
+      game.timerInterval = null;
     }
 
     // Update statistics
@@ -582,64 +587,58 @@ io.on("connection", (uniqueSocket) => {
       gameStats.blackWins++;
     }
 
-    // Notify all clients about the resignation
-    io.emit("gameResigned", {
+    // Notify both players about the resignation
+    io.to(game.players.white).emit("gameResigned", {
+      resignedColor: resignedColor,
+      winner: winner,
+      message: `${resignedColorName} resigned. ${winnerColorName} wins!`,
+    });
+    io.to(game.players.black).emit("gameResigned", {
       resignedColor: resignedColor,
       winner: winner,
       message: `${resignedColorName} resigned. ${winnerColorName} wins!`,
     });
 
-    io.emit(
+    io.to(game.players.white).emit(
+      "gameMessage",
+      `Game Over! ${resignedColorName} resigned. ${winnerColorName} wins! Game will restart in 5 seconds...`
+    );
+    io.to(game.players.black).emit(
       "gameMessage",
       `Game Over! ${resignedColorName} resigned. ${winnerColorName} wins! Game will restart in 5 seconds...`
     );
 
-    console.log(`${resignedColorName} resigned. ${winnerColorName} wins!`);
+    console.log(
+      `Game ${gameId} - ${resignedColorName} resigned. ${winnerColorName} wins!`
+    );
 
     // Reset the game after 5 seconds
     setTimeout(() => {
-      // Check if both players are still connected before resetting
-      const whitePlayer = players.white;
-      const blackPlayer = players.black;
-
-      if (whitePlayer && blackPlayer) {
-        console.log("Both players still connected. Resetting game...");
-        resetGame();
-        io.emit("gameMessage", "New game started! Good luck!");
-
-        console.log("Starting countdown for new game...");
-        io.emit("startCountdown");
-
-        let countdown = 3;
-        const countdownInterval = setInterval(() => {
-          io.emit("countdownTick", countdown);
-          countdown--;
-
-          if (countdown < 0) {
-            clearInterval(countdownInterval);
-            io.emit("gameStart");
-            console.log("Starting timer after countdown...");
-            startTimer();
-          }
-        }, 1000);
-      }
+      resetGame(gameId);
     }, 5000);
   });
 
   // Handle draw offer events
   uniqueSocket.on("offerDraw", (data) => {
-    console.log("Draw offer from:", data.color);
+    const gameId = socketToGame.get(uniqueSocket.id);
+    if (!gameId) return;
+
+    const game = games.get(gameId);
+    if (!game) return;
+
+    console.log(`Game ${gameId} - Draw offer from:`, data.color);
 
     // Validate that the player is actually in the game
     if (
-      (data.color === "w" && uniqueSocket.id !== players.white) ||
-      (data.color === "b" && uniqueSocket.id !== players.black)
+      (data.color === "w" && uniqueSocket.id !== game.players.white) ||
+      (data.color === "b" && uniqueSocket.id !== game.players.black)
     ) {
       return; // Invalid draw offer
     }
 
     // Send draw offer to opponent
-    const opponentSocketId = data.color === "w" ? players.black : players.white;
+    const opponentSocketId =
+      data.color === "w" ? game.players.black : game.players.white;
 
     if (opponentSocketId) {
       io.to(opponentSocketId).emit("drawOffered", {
@@ -648,89 +647,86 @@ io.on("connection", (uniqueSocket) => {
           data.color === "w" ? "White" : "Black"
         } has offered a draw.`,
       });
-      console.log(`Draw offer sent to opponent (${data.color})`);
+      console.log(
+        `Game ${gameId} - Draw offer sent to opponent (${data.color})`
+      );
     }
   });
 
   // Handle draw acceptance
   uniqueSocket.on("acceptDraw", (data) => {
-    console.log("Draw accepted by:", data.color);
+    const gameId = socketToGame.get(uniqueSocket.id);
+    if (!gameId) return;
+
+    const game = games.get(gameId);
+    if (!game) return;
+
+    console.log(`Game ${gameId} - Draw accepted by:`, data.color);
 
     // Validate that the player is actually in the game
     if (
-      (data.color === "w" && uniqueSocket.id !== players.white) ||
-      (data.color === "b" && uniqueSocket.id !== players.black)
+      (data.color === "w" && uniqueSocket.id !== game.players.white) ||
+      (data.color === "b" && uniqueSocket.id !== game.players.black)
     ) {
       return; // Invalid acceptance
     }
 
     // Stop the timer
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
+    if (game.timerInterval) {
+      clearInterval(game.timerInterval);
+      game.timerInterval = null;
     }
 
     // Update statistics
     gameStats.draws++;
     gameStats.completedGames++;
 
-    // Notify all clients about the draw
-    io.emit("drawAccepted", {
+    // Notify both players about the draw
+    io.to(game.players.white).emit("drawAccepted", {
+      message: "Game Over! Draw agreed by both players.",
+    });
+    io.to(game.players.black).emit("drawAccepted", {
       message: "Game Over! Draw agreed by both players.",
     });
 
-    io.emit(
+    io.to(game.players.white).emit(
+      "gameMessage",
+      "Game Over! Draw agreed by both players. Game will restart in 5 seconds..."
+    );
+    io.to(game.players.black).emit(
       "gameMessage",
       "Game Over! Draw agreed by both players. Game will restart in 5 seconds..."
     );
 
-    console.log("Draw accepted. Game ended in a draw.");
+    console.log(`Game ${gameId} - Draw accepted. Game ended in a draw.`);
 
     // Reset the game after 5 seconds
     setTimeout(() => {
-      // Check if both players are still connected before resetting
-      const whitePlayer = players.white;
-      const blackPlayer = players.black;
-
-      if (whitePlayer && blackPlayer) {
-        console.log("Both players still connected. Resetting game...");
-        resetGame();
-        io.emit("gameMessage", "New game started! Good luck!");
-
-        console.log("Starting countdown for new game...");
-        io.emit("startCountdown");
-
-        let countdown = 3;
-        const countdownInterval = setInterval(() => {
-          io.emit("countdownTick", countdown);
-          countdown--;
-
-          if (countdown < 0) {
-            clearInterval(countdownInterval);
-            io.emit("gameStart");
-            console.log("Starting timer after countdown...");
-            startTimer();
-          }
-        }, 1000);
-      }
+      resetGame(gameId);
     }, 5000);
   });
 
   // Handle draw decline
   uniqueSocket.on("declineDraw", (data) => {
-    console.log("Draw declined by:", data.color);
+    const gameId = socketToGame.get(uniqueSocket.id);
+    if (!gameId) return;
+
+    const game = games.get(gameId);
+    if (!game) return;
+
+    console.log(`Game ${gameId} - Draw declined by:`, data.color);
 
     // Validate that the player is actually in the game
     if (
-      (data.color === "w" && uniqueSocket.id !== players.white) ||
-      (data.color === "b" && uniqueSocket.id !== players.black)
+      (data.color === "w" && uniqueSocket.id !== game.players.white) ||
+      (data.color === "b" && uniqueSocket.id !== game.players.black)
     ) {
       return; // Invalid decline
     }
 
     // Notify the player who offered the draw
     const offeringPlayerSocketId =
-      data.color === "w" ? players.black : players.white;
+      data.color === "w" ? game.players.black : game.players.white;
 
     if (offeringPlayerSocketId) {
       io.to(offeringPlayerSocketId).emit("drawDeclined", {
@@ -739,12 +735,12 @@ io.on("connection", (uniqueSocket) => {
           data.color === "w" ? "White" : "Black"
         } declined the draw offer.`,
       });
-      console.log(`Draw offer declined by ${data.color}`);
+      console.log(`Game ${gameId} - Draw offer declined by ${data.color}`);
     }
   });
 });
 
-const PORT = process.env.PORT || 3000; // ✅ Render expects process.env.PORT
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
