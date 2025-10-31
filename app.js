@@ -78,6 +78,7 @@ const startTimer = () => {
 // Reset game function
 const resetGame = () => {
   chess.reset();
+  players = {}; // Clear player assignments for new random assignment
   playerScores = { w: 0, b: 0 };
   playerTimers = { white: 600, black: 600 };
   capturedPieces = { white: [], black: [] };
@@ -102,21 +103,33 @@ io.on("connection", (uniqueSocket) => {
   console.log("A user connected:", uniqueSocket.id);
 
   // Assign roles to the first two players (white/black)
-  if (!players.white) {
-    players.white = uniqueSocket.id;
-    uniqueSocket.emit("playerRole", "w"); // Emit the player's role as white
-    uniqueSocket.emit("waitingForOpponent"); // Tell them to wait for opponent
-    uniqueSocket.emit("boardstate", chess.fen()); // Send current board state to the new player
-    uniqueSocket.emit("scoreUpdate", playerScores); // Send initial scores
-    uniqueSocket.emit("timerUpdate", playerTimers); // Send initial timers
-    uniqueSocket.emit("capturedPiecesUpdate", capturedPieces); // Send captured pieces
-  } else if (!players.black) {
-    players.black = uniqueSocket.id;
-    uniqueSocket.emit("playerRole", "b"); // Emit the player's role as black
-    uniqueSocket.emit("boardstate", chess.fen()); // Send current board state to the new player
-    uniqueSocket.emit("scoreUpdate", playerScores); // Send initial scores
-    uniqueSocket.emit("timerUpdate", playerTimers); // Send initial timers
-    uniqueSocket.emit("capturedPiecesUpdate", capturedPieces); // Send captured pieces
+  if (!players.white && !players.black) {
+    // First player joins - randomly assign white or black
+    const randomColor = Math.random() < 0.5 ? "white" : "black";
+    const playerRole = randomColor === "white" ? "w" : "b";
+
+    players[randomColor] = uniqueSocket.id;
+    uniqueSocket.emit("playerRole", playerRole);
+    uniqueSocket.emit("waitingForOpponent");
+    uniqueSocket.emit("boardstate", chess.fen());
+    uniqueSocket.emit("scoreUpdate", playerScores);
+    uniqueSocket.emit("timerUpdate", playerTimers);
+    uniqueSocket.emit("capturedPiecesUpdate", capturedPieces);
+
+    console.log(`First player assigned ${randomColor}`);
+  } else if (!players.white || !players.black) {
+    // Second player joins - assign the remaining color
+    const remainingColor = !players.white ? "white" : "black";
+    const playerRole = remainingColor === "white" ? "w" : "b";
+
+    players[remainingColor] = uniqueSocket.id;
+    uniqueSocket.emit("playerRole", playerRole);
+    uniqueSocket.emit("boardstate", chess.fen());
+    uniqueSocket.emit("scoreUpdate", playerScores);
+    uniqueSocket.emit("timerUpdate", playerTimers);
+    uniqueSocket.emit("capturedPiecesUpdate", capturedPieces);
+
+    console.log(`Second player assigned ${remainingColor}`);
 
     // Both players are now connected - start countdown
     console.log("Both players connected. Starting countdown...");

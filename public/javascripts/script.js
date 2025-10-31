@@ -465,7 +465,9 @@ const initializeSocketListeners = () => {
 
   socket.on("waitingForOpponent", () => {
     findingMatchText.textContent = "Waiting for opponent...";
-    findingMatchSubtext.textContent = "You are White";
+    // Display the correct color based on player's role
+    const colorName = playerRole === "w" ? "White" : "Black";
+    findingMatchSubtext.textContent = `You are ${colorName}`;
     findingMatchStatus.textContent = "Waiting for another player to join";
   });
 
