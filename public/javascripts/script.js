@@ -102,6 +102,22 @@ const updateMoveHistory = () => {
       return;
     }
 
+    // Map piece types to Unicode symbols
+    const pieceSymbols = {
+      p: "♟", // Pawn
+      n: "♞", // Knight
+      b: "♝", // Bishop
+      r: "♜", // Rook
+      q: "♛", // Queen
+      k: "♚", // King
+    };
+
+    // Helper function to format move with piece
+    const formatMove = (move) => {
+      const piece = pieceSymbols[move.piece.toLowerCase()] || "";
+      return `${piece} ${move.san}`;
+    };
+
     let html = "";
     for (let i = 0; i < history.length; i += 2) {
       const moveNumber = Math.floor(i / 2) + 1;
@@ -111,10 +127,14 @@ const updateMoveHistory = () => {
       html += `
         <div class="move-pair flex gap-2 py-1 px-2 hover:bg-zinc-700 rounded">
           <span class="move-number text-zinc-400 w-8">${moveNumber}.</span>
-          <span class="white-move text-white w-16">${whiteMove.san}</span>
+          <span class="white-move text-white w-20">${formatMove(
+            whiteMove
+          )}</span>
           ${
             blackMove
-              ? `<span class="black-move text-zinc-300 w-16">${blackMove.san}</span>`
+              ? `<span class="black-move text-zinc-300 w-20">${formatMove(
+                  blackMove
+                )}</span>`
               : ""
           }
         </div>
@@ -1066,6 +1086,22 @@ const initializeSocketListeners = () => {
         return;
       }
 
+      // Map piece types to Unicode symbols
+      const pieceSymbols = {
+        p: "♟", // Pawn
+        n: "♞", // Knight
+        b: "♝", // Bishop
+        r: "♜", // Rook
+        q: "♛", // Queen
+        k: "♚", // King
+      };
+
+      // Helper function to format move with piece
+      const formatMove = (move) => {
+        const piece = pieceSymbols[move.piece.toLowerCase()] || "";
+        return `${piece} ${move.san}`;
+      };
+
       let html = "";
       for (let i = 0; i < history.length; i += 2) {
         const moveNumber = Math.floor(i / 2) + 1;
@@ -1075,10 +1111,14 @@ const initializeSocketListeners = () => {
         html += `
           <div class="move-pair flex gap-2 py-1 px-2 hover:bg-zinc-700 rounded">
             <span class="move-number text-zinc-400 w-8">${moveNumber}.</span>
-            <span class="white-move text-white w-16">${whiteMove.san}</span>
+            <span class="white-move text-white w-20">${formatMove(
+              whiteMove
+            )}</span>
             ${
               blackMove
-                ? `<span class="black-move text-zinc-300 w-16">${blackMove.san}</span>`
+                ? `<span class="black-move text-zinc-300 w-20">${formatMove(
+                    blackMove
+                  )}</span>`
                 : ""
             }
           </div>
