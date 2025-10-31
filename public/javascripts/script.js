@@ -25,6 +25,7 @@ let sourceSquare = null;
 let playerRole = null;
 let selectedSquare = null;
 let gameStarted = false;
+let pendingPromotion = null; // Store pending promotion move
 
 // Handle Play button click
 playButton.addEventListener("click", () => {
@@ -215,12 +216,139 @@ const handleMove = (sourceSquare, targetSquare) => {
     return;
   }
 
+  const from = `${String.fromCharCode(97 + sourceSquare.col)}${
+    8 - sourceSquare.row
+  }`;
+  const to = `${String.fromCharCode(97 + targetSquare.col)}${
+    8 - targetSquare.row
+  }`;
+
+  // Check if this is a pawn promotion move
+  const piece = chess.get(from);
+  const isPromotion =
+    piece &&
+    piece.type === "p" &&
+    ((piece.color === "w" && targetSquare.row === 0) ||
+      (piece.color === "b" && targetSquare.row === 7));
+
+  if (isPromotion) {
+    // Store the move and show promotion dialog
+    pendingPromotion = { from, to, sourceSquare, targetSquare };
+    showPromotionDialog(piece.color);
+    return;
+  }
+
+  // Regular move (includes castling and en passant - handled automatically by chess.js)
+  const move = { from, to };
+
+  // Validate the move on the client side first
+  const result = chess.move(move);
+
+  if (result) {
+    socket.emit("move", move);
+    renderBoard();
+  } else {
+    console.log("Invalid move attempted");
+  }
+};
+
+// Show promotion dialog for pawn promotion
+const showPromotionDialog = (color) => {
+  // Create modal overlay
+  const overlay = document.createElement("div");
+  overlay.id = "promotion-overlay";
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  `;
+
+  // Create promotion dialog
+  const dialog = document.createElement("div");
+  dialog.style.cssText = `
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  `;
+
+  const title = document.createElement("h3");
+  title.textContent = "Choose Promotion Piece";
+  title.style.cssText = `
+    margin: 0 0 15px 0;
+    text-align: center;
+    color: #333;
+  `;
+
+  const piecesContainer = document.createElement("div");
+  piecesContainer.style.cssText = `
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+  `;
+
+  const pieces = [
+    { type: "q", symbol: color === "w" ? "♕" : "♛", name: "Queen" },
+    { type: "r", symbol: color === "w" ? "♖" : "♜", name: "Rook" },
+    { type: "b", symbol: color === "w" ? "♗" : "♝", name: "Bishop" },
+    { type: "n", symbol: color === "w" ? "♘" : "♞", name: "Knight" },
+  ];
+
+  pieces.forEach((piece) => {
+    const button = document.createElement("button");
+    button.innerHTML = piece.symbol;
+    button.title = piece.name;
+    button.style.cssText = `
+      font-size: 48px;
+      width: 80px;
+      height: 80px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s;
+    `;
+    button.onmouseover = () => {
+      button.style.background = "#f0f0f0";
+      button.style.borderColor = "#999";
+      button.style.transform = "scale(1.1)";
+    };
+    button.onmouseout = () => {
+      button.style.background = "white";
+      button.style.borderColor = "#ddd";
+      button.style.transform = "scale(1)";
+    };
+    button.onclick = () => handlePromotion(piece.type);
+    piecesContainer.appendChild(button);
+  });
+
+  dialog.appendChild(title);
+  dialog.appendChild(piecesContainer);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+};
+
+// Handle the promotion choice
+const handlePromotion = (pieceType) => {
+  // Remove promotion dialog
+  const overlay = document.getElementById("promotion-overlay");
+  if (overlay) {
+    overlay.remove();
+  }
+
+  if (!pendingPromotion) return;
+
   const move = {
-    from: `${String.fromCharCode(97 + sourceSquare.col)}${
-      8 - sourceSquare.row
-    }`,
-    to: `${String.fromCharCode(97 + targetSquare.col)}${8 - targetSquare.row}`,
-    promotion: "q",
+    from: pendingPromotion.from,
+    to: pendingPromotion.to,
+    promotion: pieceType,
   };
 
   // Validate the move on the client side first
@@ -230,8 +358,10 @@ const handleMove = (sourceSquare, targetSquare) => {
     socket.emit("move", move);
     renderBoard();
   } else {
-    alert("Invalid move");
+    console.log("Invalid promotion move");
   }
+
+  pendingPromotion = null;
 };
 
 // Show hint dots for possible moves
@@ -364,10 +494,26 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("move", (move) => {
-    chess.move(move);
+    const result = chess.move(move);
     selectedSquare = null;
     clearHints();
     renderBoard();
+
+    // Highlight special moves
+    if (result) {
+      if (result.flags.includes("p")) {
+        console.log("Pawn promoted to:", result.promotion);
+        highlightSpecialMove(result.to, "promotion");
+      }
+      if (result.flags.includes("k") || result.flags.includes("q")) {
+        console.log("Castling move");
+        highlightSpecialMove(result.to, "castling");
+      }
+      if (result.flags.includes("e")) {
+        console.log("En passant capture");
+        highlightSpecialMove(result.to, "en-passant");
+      }
+    }
   });
 
   socket.on("gameMessage", (message) => {
@@ -469,5 +615,22 @@ const updateTimerDisplay = (color, seconds) => {
 
   if (seconds < 60) {
     timerElement.classList.add("warning");
+  }
+};
+
+// Highlight special moves (castling, en passant, promotion)
+const highlightSpecialMove = (square, type) => {
+  const col = square.charCodeAt(0) - 97;
+  const row = 8 - parseInt(square[1]);
+
+  const squareElement = document.querySelector(
+    `[data-row="${row}"][data-col="${col}"]`
+  );
+
+  if (squareElement) {
+    squareElement.classList.add(type);
+    setTimeout(() => {
+      squareElement.classList.remove(type);
+    }, 1000);
   }
 };

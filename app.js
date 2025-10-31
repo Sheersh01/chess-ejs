@@ -200,6 +200,21 @@ io.on("connection", (uniqueSocket) => {
         // Log scores for debugging
         console.log("Scores updated:", playerScores); // Log scores for debugging
 
+        // Log special moves
+        if (result.flags.includes("p")) {
+          console.log(
+            `Pawn promotion: ${result.from} to ${result.to}, promoted to ${result.promotion}`
+          );
+        }
+        if (result.flags.includes("k") || result.flags.includes("q")) {
+          console.log(
+            `Castling: ${result.flags.includes("k") ? "Kingside" : "Queenside"}`
+          );
+        }
+        if (result.flags.includes("e")) {
+          console.log(`En passant capture: ${result.from} to ${result.to}`);
+        }
+
         // Check for checkmate (no need to check for check, handled visually on client)
         if (chess.isCheckmate()) {
           io.emit(
@@ -208,6 +223,21 @@ io.on("connection", (uniqueSocket) => {
           );
 
           // Stop timer and reset game after checkmate
+          clearInterval(timerInterval);
+          setTimeout(() => {
+            resetGame();
+          }, 3000);
+        } else if (chess.isStalemate()) {
+          io.emit("gameMessage", "Game Over! Stalemate - It's a draw!");
+          clearInterval(timerInterval);
+          setTimeout(() => {
+            resetGame();
+          }, 3000);
+        } else if (chess.isDraw()) {
+          io.emit(
+            "gameMessage",
+            "Game Over! Draw by insufficient material or repetition!"
+          );
           clearInterval(timerInterval);
           setTimeout(() => {
             resetGame();
