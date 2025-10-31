@@ -167,6 +167,13 @@
           <!-- Game Controls -->
           <div class="flex gap-4 items-center">
             <button
+              id="draw-offer-button"
+              class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-lg shadow-lg transform transition hover:scale-105 active:scale-95"
+              style="display: none"
+            >
+              🤝 Offer Draw
+            </button>
+            <button
               id="resign-button"
               class="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-lg shadow-lg transform transition hover:scale-105 active:scale-95"
               style="display: none"
@@ -178,6 +185,20 @@
           <!-- Message display -->
           <div
             class="message font-bold text-red-500 text-center text-2xl min-h-[40px]"
+          ></div>
+        </div>
+
+        <!-- Right Side - Move History -->
+        <div
+          class="move-history-container bg-zinc-800 rounded-lg p-4 shadow-lg w-80"
+          style="display: none"
+        >
+          <h3 class="text-white font-bold text-lg mb-3 text-center">
+            Move History
+          </h3>
+          <div
+            id="move-history"
+            class="move-history overflow-y-auto max-h-[600px] text-sm"
           ></div>
         </div>
       </div>

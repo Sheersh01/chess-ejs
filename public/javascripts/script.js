@@ -20,6 +20,9 @@ const findingMatchSubtext = document.getElementById("finding-match-subtext");
 const findingMatchStatus = document.getElementById("finding-match-status");
 const countdownNumber = document.getElementById("countdown-number");
 const resignButton = document.getElementById("resign-button");
+const drawOfferButton = document.getElementById("draw-offer-button");
+const moveHistoryContainer = document.querySelector(".move-history-container");
+const moveHistoryElement = document.getElementById("move-history");
 
 let draggedPiece = null;
 let sourceSquare = null;
@@ -62,6 +65,70 @@ const showNotification = (message, type = "info", duration = 3000) => {
   return notification;
 };
 
+// Sound effects system
+const sounds = {
+  move: new Audio("/sounds/move.mp3"),
+  capture: new Audio("/sounds/capture.mp3"),
+  check: new Audio("/sounds/check.mp3"),
+  castle: new Audio("/sounds/castle.mp3"),
+  gameEnd: new Audio("/sounds/game-end.mp3"),
+  notify: new Audio("/sounds/notify.mp3"),
+};
+
+// Set volume for all sounds
+Object.values(sounds).forEach((sound) => {
+  sound.volume = 0.5;
+});
+
+const playSound = (type) => {
+  try {
+    if (sounds[type]) {
+      sounds[type].currentTime = 0;
+      sounds[type].play().catch((e) => console.log("Sound play failed:", e));
+    }
+  } catch (error) {
+    console.log("Sound error:", error);
+  }
+};
+
+// Update move history display
+const updateMoveHistory = () => {
+  try {
+    const history = chess.history({ verbose: true });
+
+    if (history.length === 0) {
+      moveHistoryElement.innerHTML =
+        '<p class="text-zinc-500 text-center">No moves yet</p>';
+      return;
+    }
+
+    let html = "";
+    for (let i = 0; i < history.length; i += 2) {
+      const moveNumber = Math.floor(i / 2) + 1;
+      const whiteMove = history[i];
+      const blackMove = history[i + 1];
+
+      html += `
+        <div class="move-pair flex gap-2 py-1 px-2 hover:bg-zinc-700 rounded">
+          <span class="move-number text-zinc-400 w-8">${moveNumber}.</span>
+          <span class="white-move text-white w-16">${whiteMove.san}</span>
+          ${
+            blackMove
+              ? `<span class="black-move text-zinc-300 w-16">${blackMove.san}</span>`
+              : ""
+          }
+        </div>
+      `;
+    }
+
+    moveHistoryElement.innerHTML = html;
+    // Auto-scroll to bottom
+    moveHistoryElement.scrollTop = moveHistoryElement.scrollHeight;
+  } catch (error) {
+    console.error("Error updating move history:", error);
+  }
+};
+
 // Handle Play button click
 playButton.addEventListener("click", () => {
   // Hide landing screen and show finding match screen
@@ -99,6 +166,165 @@ resignButton.addEventListener("click", () => {
     showNotification("You have resigned from the game.", "info", 3000);
   }
 });
+
+// Handle Draw Offer button click
+drawOfferButton.addEventListener("click", () => {
+  if (!socket || !gameStarted || !playerRole) {
+    return;
+  }
+
+  // Show confirmation dialog
+  const colorName = playerRole === "w" ? "White" : "Black";
+  const confirmed = confirm(
+    `Offer a draw to your opponent?\n\nYour opponent will be asked to accept or decline.`
+  );
+
+  if (confirmed) {
+    // Emit draw offer event to server
+    socket.emit("offerDraw", { color: playerRole });
+
+    // Disable draw offer button temporarily
+    drawOfferButton.disabled = true;
+    drawOfferButton.style.opacity = "0.5";
+    drawOfferButton.textContent = "🤝 Draw Offered";
+
+    // Show notification
+    showNotification("Draw offer sent to opponent.", "info", 3000);
+
+    // Re-enable after 10 seconds
+    setTimeout(() => {
+      drawOfferButton.disabled = false;
+      drawOfferButton.style.opacity = "1";
+      drawOfferButton.textContent = "🤝 Offer Draw";
+    }, 10000);
+  }
+});
+
+// Show draw offer dialog when receiving an offer
+const showDrawOfferDialog = (offerColor) => {
+  const colorName = offerColor === "w" ? "White" : "Black";
+
+  // Play notification sound
+  playSound("notify");
+
+  // Create modal overlay
+  const overlay = document.createElement("div");
+  overlay.id = "draw-offer-overlay";
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+  `;
+
+  // Create dialog
+  const dialog = document.createElement("div");
+  dialog.style.cssText = `
+    background: #1f2937;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    max-width: 400px;
+    text-align: center;
+    animation: scaleIn 0.3s ease;
+  `;
+
+  const title = document.createElement("h3");
+  title.textContent = "🤝 Draw Offer";
+  title.style.cssText = `
+    margin: 0 0 15px 0;
+    color: #3b82f6;
+    font-size: 24px;
+    font-weight: bold;
+  `;
+
+  const message = document.createElement("p");
+  message.textContent = `${colorName} has offered a draw. Do you accept?`;
+  message.style.cssText = `
+    color: #d1d5db;
+    margin: 0 0 25px 0;
+    font-size: 16px;
+    line-height: 1.5;
+  `;
+
+  const buttonsContainer = document.createElement("div");
+  buttonsContainer.style.cssText = `
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+  `;
+
+  const acceptButton = document.createElement("button");
+  acceptButton.textContent = "✓ Accept";
+  acceptButton.style.cssText = `
+    background: #10b981;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1;
+  `;
+  acceptButton.onmouseover = () => {
+    acceptButton.style.background = "#059669";
+    acceptButton.style.transform = "scale(1.05)";
+  };
+  acceptButton.onmouseout = () => {
+    acceptButton.style.background = "#10b981";
+    acceptButton.style.transform = "scale(1)";
+  };
+  acceptButton.onclick = () => {
+    socket.emit("acceptDraw", { color: playerRole });
+    overlay.remove();
+  };
+
+  const declineButton = document.createElement("button");
+  declineButton.textContent = "✗ Decline";
+  declineButton.style.cssText = `
+    background: #ef4444;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1;
+  `;
+  declineButton.onmouseover = () => {
+    declineButton.style.background = "#dc2626";
+    declineButton.style.transform = "scale(1.05)";
+  };
+  declineButton.onmouseout = () => {
+    declineButton.style.background = "#ef4444";
+    declineButton.style.transform = "scale(1)";
+  };
+  declineButton.onclick = () => {
+    socket.emit("declineDraw", { color: playerRole });
+    overlay.remove();
+    showNotification("Draw offer declined.", "info", 2500);
+  };
+
+  buttonsContainer.appendChild(acceptButton);
+  buttonsContainer.appendChild(declineButton);
+
+  dialog.appendChild(title);
+  dialog.appendChild(message);
+  dialog.appendChild(buttonsContainer);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+};
 
 const renderBoard = () => {
   const board = chess.board();
@@ -304,6 +530,15 @@ const handleMove = (sourceSquare, targetSquare) => {
   const result = chess.move(move);
 
   if (result) {
+    // Play appropriate sound
+    if (result.flags.includes("k") || result.flags.includes("q")) {
+      playSound("castle");
+    } else if (result.captured) {
+      playSound("capture");
+    } else {
+      playSound("move");
+    }
+
     socket.emit("move", move);
     renderBoard();
   } else {
@@ -311,6 +546,76 @@ const handleMove = (sourceSquare, targetSquare) => {
     showNotification("Invalid move! Please try a legal move.", "error", 2500);
   }
 };
+
+// Mobile touch support
+let touchStartSquare = null;
+let touchStartPiece = null;
+
+const handleTouchStart = (e) => {
+  if (!playerRole || !gameStarted) return;
+
+  const touch = e.touches[0];
+  const element = document.elementFromPoint(touch.clientX, touch.clientY);
+  const square = element?.closest(".square");
+
+  if (square) {
+    const piece = square.querySelector(".piece");
+    if (piece && piece.draggable) {
+      e.preventDefault();
+      const row = parseInt(square.dataset.row);
+      const col = parseInt(square.dataset.col);
+      touchStartSquare = { row, col };
+      touchStartPiece = piece;
+
+      // Highlight selected square
+      selectedSquare = touchStartSquare;
+      showHints(touchStartSquare);
+      renderBoard();
+    }
+  }
+};
+
+const handleTouchMove = (e) => {
+  if (touchStartSquare) {
+    e.preventDefault();
+  }
+};
+
+const handleTouchEnd = (e) => {
+  if (!touchStartSquare) return;
+
+  e.preventDefault();
+  const touch = e.changedTouches[0];
+  const element = document.elementFromPoint(touch.clientX, touch.clientY);
+  const square = element?.closest(".square");
+
+  if (square) {
+    const row = parseInt(square.dataset.row);
+    const col = parseInt(square.dataset.col);
+    const targetSquare = { row, col };
+
+    if (row !== touchStartSquare.row || col !== touchStartSquare.col) {
+      handleMove(touchStartSquare, targetSquare);
+    }
+  }
+
+  touchStartSquare = null;
+  touchStartPiece = null;
+  selectedSquare = null;
+  clearHints();
+  renderBoard();
+};
+
+// Add touch listeners to board
+if (boardElement) {
+  boardElement.addEventListener("touchstart", handleTouchStart, {
+    passive: false,
+  });
+  boardElement.addEventListener("touchmove", handleTouchMove, {
+    passive: false,
+  });
+  boardElement.addEventListener("touchend", handleTouchEnd, { passive: false });
+}
 
 // Show promotion dialog for pawn promotion
 const showPromotionDialog = (color) => {
@@ -545,12 +850,15 @@ const initializeSocketListeners = () => {
     countdownScreen.style.display = "none";
     gameArea.style.display = "flex";
 
-    // Show resign button for players (not spectators)
+    // Show resign button, draw offer button and move history for players (not spectators)
     if (playerRole) {
       resignButton.style.display = "block";
+      drawOfferButton.style.display = "block";
     }
+    moveHistoryContainer.style.display = "block";
 
     renderBoard();
+    updateMoveHistory();
   });
 
   socket.on("boardstate", (fen) => {
@@ -560,6 +868,7 @@ const initializeSocketListeners = () => {
     messageElement.style.display = "none";
 
     renderBoard();
+    updateMoveHistory();
   });
 
   socket.on("move", (move) => {
@@ -567,6 +876,23 @@ const initializeSocketListeners = () => {
     selectedSquare = null;
     clearHints();
     renderBoard();
+    updateMoveHistory();
+
+    // Play sound for opponent's move
+    if (result) {
+      if (result.flags.includes("k") || result.flags.includes("q")) {
+        playSound("castle");
+      } else if (result.captured) {
+        playSound("capture");
+      } else {
+        playSound("move");
+      }
+
+      // Check if opponent is in check after this move
+      if (chess.in_check()) {
+        playSound("check");
+      }
+    }
 
     // Highlight special moves
     if (result) {
@@ -591,21 +917,19 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("gameResigned", (data) => {
-    // Hide resign button
-    resignButton.style.display = "none";
-
     // Show game over message
     messageElement.innerText = data.message;
     messageElement.style.display = "block";
 
-    // Show notification
+    // Show popup alert
     const winnerColor = data.winner === "w" ? "White" : "Black";
     const resignedColor = data.resignedColor === "w" ? "White" : "Black";
-    showNotification(
-      `${resignedColor} resigned. ${winnerColor} wins!`,
-      "info",
-      5000
-    );
+
+    setTimeout(() => {
+      alert(
+        `🏳️ Game Over!\n\n${resignedColor} resigned.\n${winnerColor} wins!\n\nGame will restart shortly...`
+      );
+    }, 100);
   });
 
   socket.on("turnChange", (turn) => {
@@ -702,6 +1026,71 @@ const initializeSocketListeners = () => {
       "success",
       3000
     );
+  });
+
+  // Draw offer events
+  socket.on("drawOffered", (data) => {
+    console.log("Draw offer received from:", data.color);
+    showDrawOfferDialog(data.color);
+  });
+
+  socket.on("drawAccepted", (data) => {
+    // Show game over message
+    messageElement.innerText = data.message;
+    messageElement.style.display = "block";
+    messageElement.style.backgroundColor = "#3b82f6";
+    messageElement.style.color = "white";
+
+    // Show popup alert
+    setTimeout(() => {
+      alert(
+        `🤝 Game Over!\n\nDraw accepted by both players.\n\nGame will restart shortly...`
+      );
+    }, 100);
+
+    playSound("gameEnd");
+  });
+
+  socket.on("drawDeclined", (data) => {
+    console.log("Draw offer declined by:", data.color);
+    const colorName = data.color === "w" ? "White" : "Black";
+    showNotification(`${colorName} declined the draw offer.`, "warning", 3000);
+  });
+
+  // Move history update
+  socket.on("moveHistory", (history) => {
+    try {
+      if (history.length === 0) {
+        moveHistoryElement.innerHTML =
+          '<p class="text-zinc-500 text-center">No moves yet</p>';
+        return;
+      }
+
+      let html = "";
+      for (let i = 0; i < history.length; i += 2) {
+        const moveNumber = Math.floor(i / 2) + 1;
+        const whiteMove = history[i];
+        const blackMove = history[i + 1];
+
+        html += `
+          <div class="move-pair flex gap-2 py-1 px-2 hover:bg-zinc-700 rounded">
+            <span class="move-number text-zinc-400 w-8">${moveNumber}.</span>
+            <span class="white-move text-white w-16">${whiteMove.san}</span>
+            ${
+              blackMove
+                ? `<span class="black-move text-zinc-300 w-16">${blackMove.san}</span>`
+                : ""
+            }
+          </div>
+        `;
+      }
+
+      moveHistoryElement.innerHTML = html;
+      // Auto-scroll to bottom
+      moveHistoryElement.scrollTop = moveHistoryElement.scrollHeight;
+    } catch (error) {
+      console.error("Error updating move history:", error);
+    }
   });
 };
 

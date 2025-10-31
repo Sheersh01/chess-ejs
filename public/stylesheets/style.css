@@ -454,3 +454,80 @@
     padding-right: 45px;
   }
 }
+
+/* Move History */
+.move-history-container {
+  max-width: 320px;
+  min-width: 280px;
+}
+
+.move-history {
+  background-color: #2d2d2d;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.move-history::-webkit-scrollbar {
+  width: 8px;
+}
+
+.move-history::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 4px;
+}
+
+.move-history::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+  border-radius: 4px;
+}
+
+.move-history::-webkit-scrollbar-thumb:hover {
+  background: #5a5a5a;
+}
+
+.move-pair {
+  font-family: "Courier New", monospace;
+  transition: background-color 0.2s ease;
+}
+
+.move-pair:last-child {
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+.move-number {
+  font-weight: bold;
+}
+
+/* Responsive move history */
+@media (max-width: 1200px) {
+  .move-history-container {
+    width: 100%;
+    max-width: none;
+    margin-top: 20px;
+  }
+
+  .move-history {
+    max-height: 200px;
+  }
+}
+
+/* Draw offer dialog animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
