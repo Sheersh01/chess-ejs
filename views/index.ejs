@@ -9,6 +9,42 @@
     <link rel="stylesheet" href="/stylesheets/style.css" />
   </head>
   <body>
+    <!-- User Info Bar (if logged in) -->
+    <% if (typeof user !== 'undefined' && user) { %>
+    <div class="fixed top-0 left-0 right-0 bg-zinc-800 border-b border-zinc-700 px-4 py-3 z-50">
+      <div class="max-w-7xl mx-auto flex justify-between items-center">
+        <div class="flex items-center gap-4">
+          <div class="text-white font-bold flex items-center gap-2">
+            ♔ <%= user.username %>
+            <% if (user.isGuest) { %>
+            <span class="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">GUEST</span>
+            <% } %>
+          </div>
+          <div class="flex items-center gap-3 text-sm">
+            <span class="bg-green-600 px-3 py-1 rounded-full text-white font-semibold">
+              Rating: <%= user.rating %>
+            </span>
+            <% if (!user.isGuest) { %>
+            <span class="text-zinc-400">
+              W: <%= user.wins %> | L: <%= user.losses %> | D: <%= user.draws %>
+            </span>
+            <% } else { %>
+            <span class="text-yellow-400 text-xs">
+              ⚠️ Stats not saved for guests
+            </span>
+            <% } %>
+          </div>
+        </div>
+        <a
+          href="/auth/logout"
+          class="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-lg transition"
+        >
+          <%= user.isGuest ? 'Exit' : 'Logout' %>
+        </a>
+      </div>
+    </div>
+    <% } %>
+
     <!-- Landing Screen -->
     <div
       id="landing-screen"
@@ -76,12 +112,12 @@
     <!-- Game Area (Hidden Initially) -->
     <div
       id="game-area"
-      class="w-full min-h-screen bg-zinc-900 flex items-center justify-center p-8"
+       class="w-full min-h-screen bg-zinc-900 flex items-center justify-center xl:p-8 lg:p-2"
       style="display: none"
     >
-      <div class="game-container flex gap-8 items-start max-w-7xl">
+      <div class="game-container flex xl:gap-8 gap-2 items-start max-w-7xl">
         <!-- Left Side Panel -->
-        <div class="left-panel flex flex-col gap-6 w-80">
+       <div class="left-panel flex flex-col xl:gap-6 lg:gap-4 xl:w-80 lg:w-60">
           <!-- Turn display -->
           <div
             class="turn-display font-bold text-white text-center text-2xl bg-zinc-800 px-6 py-4 rounded-lg shadow-lg"
@@ -93,8 +129,7 @@
           <div class="player-info bg-zinc-800 rounded-lg p-4 shadow-lg">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
-                <div class="text-white font-bold text-lg">⚪ White</div>
-                <div
+ <div class="text-white font-bold xl:text-lg lg:text-sm">⚪ White</div>                <div
                   id="white-check-status"
                   class="check-badge"
                   style="display: none"
@@ -102,15 +137,15 @@
                   CHECK
                 </div>
               </div>
-              <div class="white-score text-white font-bold text-xl">0</div>
+              <div class="white-score text-white font-bold xl:text-xl lg:text-md">0</div>
             </div>
             <div class="timer-container">
               <div class="timer-label text-zinc-400 text-xs mb-1">
                 Time Remaining
               </div>
-              <div
+               <div
                 id="white-timer"
-                class="timer text-white text-3xl font-mono font-bold bg-zinc-700 px-4 py-3 rounded-lg text-center"
+                class="timer text-white xl:text-3xl lg:text-md font-mono font-bold bg-zinc-700 px-4 py-3 rounded-lg text-center"
               >
                 10:00
               </div>
@@ -128,7 +163,7 @@
           <div class="player-info bg-zinc-800 rounded-lg p-4 shadow-lg">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
-                <div class="text-white font-bold text-lg">⚫ Black</div>
+                <div class="text-white font-bold xl:text-lg lg:text-sm">⚫ Black</div>
                 <div
                   id="black-check-status"
                   class="check-badge"
@@ -137,7 +172,7 @@
                   CHECK
                 </div>
               </div>
-              <div class="black-score text-white font-bold text-xl">0</div>
+              <div class="black-score text-white font-bold xl:text-xl lg:text-md">0</div>
             </div>
             <div class="timer-container">
               <div class="timer-label text-zinc-400 text-xs mb-1">
@@ -145,7 +180,7 @@
               </div>
               <div
                 id="black-timer"
-                class="timer text-white text-3xl font-mono font-bold bg-zinc-700 px-4 py-3 rounded-lg text-center"
+                class="timer text-white xl:text-3xl lg:text-md font-mono font-bold bg-zinc-700 px-4 py-3 rounded-lg text-center"
               >
                 10:00
               </div>
@@ -190,7 +225,7 @@
 
         <!-- Right Side - Move History -->
         <div
-          class="move-history-container bg-zinc-800 rounded-lg p-4 shadow-lg w-80"
+          class="move-history-container bg-zinc-800 rounded-lg p-4 shadow-lg xl:w-80 lg:w-56"
           style="display: none"
         >
           <h3 class="text-white font-bold text-lg mb-3 text-center">

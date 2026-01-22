@@ -67,12 +67,17 @@ const showNotification = (message, type = "info", duration = 3000) => {
 
 // Sound effects system
 const sounds = {
-  move: new Audio("/sounds/move.mp3"),
+  moveSelf: new Audio("/sounds/move-self.mp3"),
+  moveOpponent: new Audio("/sounds/move-opponent.mp3"),
   capture: new Audio("/sounds/capture.mp3"),
-  check: new Audio("/sounds/check.mp3"),
+  check: new Audio("/sounds/move-check.mp3"),
   castle: new Audio("/sounds/castle.mp3"),
+  promote: new Audio("/sounds/promote.mp3"),
+  gameStart: new Audio("/sounds/game-start.mp3"),
   gameEnd: new Audio("/sounds/game-end.mp3"),
   notify: new Audio("/sounds/notify.mp3"),
+  illegal: new Audio("/sounds/illegal.mp3"),
+  tenseconds: new Audio("/sounds/tenseconds.mp3"),
 };
 
 // Set volume for all sounds
@@ -80,8 +85,18 @@ Object.values(sounds).forEach((sound) => {
   sound.volume = 0.5;
 });
 
+let lastSoundTime = 0;
+const SOUND_DEBOUNCE = 250; // ms - prevent sounds from playing too close together
+
 const playSound = (type) => {
   try {
+    const now = Date.now();
+    // Debounce to prevent duplicate sounds
+    if (now - lastSoundTime < SOUND_DEBOUNCE) {
+      return;
+    }
+    lastSoundTime = now;
+
     if (sounds[type]) {
       sounds[type].currentTime = 0;
       sounds[type].play().catch((e) => console.log("Sound play failed:", e));
@@ -92,11 +107,12 @@ const playSound = (type) => {
 };
 
 // Update move history display
-const updateMoveHistory = () => {
+const updateMoveHistory = (history = null) => {
   try {
-    const history = chess.history({ verbose: true });
+    // Use provided history or fall back to chess.history()
+    const moveHistory = history || chess.history({ verbose: true });
 
-    if (history.length === 0) {
+    if (moveHistory.length === 0) {
       moveHistoryElement.innerHTML =
         '<p class="text-zinc-500 text-center">No moves yet</p>';
       return;
@@ -119,21 +135,21 @@ const updateMoveHistory = () => {
     };
 
     let html = "";
-    for (let i = 0; i < history.length; i += 2) {
+    for (let i = 0; i < moveHistory.length; i += 2) {
       const moveNumber = Math.floor(i / 2) + 1;
-      const whiteMove = history[i];
-      const blackMove = history[i + 1];
+      const whiteMove = moveHistory[i];
+      const blackMove = moveHistory[i + 1];
 
       html += `
         <div class="move-pair flex gap-2 py-1 px-2 hover:bg-zinc-700 rounded">
           <span class="move-number text-zinc-400 w-8">${moveNumber}.</span>
           <span class="white-move text-white w-20">${formatMove(
-            whiteMove
+            whiteMove,
           )}</span>
           ${
             blackMove
               ? `<span class="black-move text-zinc-300 w-20">${formatMove(
-                  blackMove
+                  blackMove,
                 )}</span>`
               : ""
           }
@@ -172,12 +188,12 @@ resignButton.addEventListener("click", () => {
   // Show confirmation dialog
   const colorName = playerRole === "w" ? "White" : "Black";
   const confirmed = confirm(
-    `Are you sure you want to resign as ${colorName}?\n\nThis will end the game and your opponent will win.`
+    `Are you sure you want to resign as ${colorName}?\n\nThis will end the game and your opponent will win.`,
   );
 
   if (confirmed) {
     // Emit resign event to server
-    socket.emit("resign", { color: playerRole });
+    socket.emit("resign");
 
     // Hide resign button
     resignButton.style.display = "none";
@@ -196,12 +212,12 @@ drawOfferButton.addEventListener("click", () => {
   // Show confirmation dialog
   const colorName = playerRole === "w" ? "White" : "Black";
   const confirmed = confirm(
-    `Offer a draw to your opponent?\n\nYour opponent will be asked to accept or decline.`
+    `Offer a draw to your opponent?\n\nYour opponent will be asked to accept or decline.`,
   );
 
   if (confirmed) {
     // Emit draw offer event to server
-    socket.emit("offerDraw", { color: playerRole });
+    socket.emit("offerDraw");
 
     // Disable draw offer button temporarily
     drawOfferButton.disabled = true;
@@ -304,7 +320,7 @@ const showDrawOfferDialog = (offerColor) => {
     acceptButton.style.transform = "scale(1)";
   };
   acceptButton.onclick = () => {
-    socket.emit("acceptDraw", { color: playerRole });
+    socket.emit("acceptDraw");
     overlay.remove();
   };
 
@@ -331,7 +347,7 @@ const showDrawOfferDialog = (offerColor) => {
     declineButton.style.transform = "scale(1)";
   };
   declineButton.onclick = () => {
-    socket.emit("declineDraw", { color: playerRole });
+    socket.emit("declineDraw");
     overlay.remove();
     showNotification("Draw offer declined.", "info", 2500);
   };
@@ -377,7 +393,7 @@ const renderBoard = () => {
       const squareElement = document.createElement("div");
       squareElement.classList.add(
         "square",
-        (rowindex + colindex) % 2 === 0 ? "light" : "dark"
+        (rowindex + colindex) % 2 === 0 ? "light" : "dark",
       );
       squareElement.dataset.row = rowindex;
       squareElement.dataset.col = colindex;
@@ -404,7 +420,7 @@ const renderBoard = () => {
         const pieceElement = document.createElement("div");
         pieceElement.classList.add(
           "piece",
-          square.color === "w" ? "white" : "black"
+          square.color === "w" ? "white" : "black",
         );
         pieceElement.innerText = getPieceUnicode(square);
         pieceElement.draggable = playerRole === square.color;
@@ -546,23 +562,16 @@ const handleMove = (sourceSquare, targetSquare) => {
   // Regular move (includes castling and en passant - handled automatically by chess.js)
   const move = { from, to };
 
-  // Validate the move on the client side first
-  const result = chess.move(move);
+  // Validate the move on the client side first (without applying it)
+  const tempChess = new Chess(chess.fen());
+  const result = tempChess.move(move);
 
   if (result) {
-    // Play appropriate sound
-    if (result.flags.includes("k") || result.flags.includes("q")) {
-      playSound("castle");
-    } else if (result.captured) {
-      playSound("capture");
-    } else {
-      playSound("move");
-    }
-
+    // Send move to server - server will broadcast back to all clients
     socket.emit("move", move);
-    renderBoard();
   } else {
     console.log("Invalid move attempted");
+    playSound("illegal");
     showNotification("Invalid move! Please try a legal move.", "error", 2500);
   }
 };
@@ -736,12 +745,13 @@ const handlePromotion = (pieceType) => {
     promotion: pieceType,
   };
 
-  // Validate the move on the client side first
-  const result = chess.move(move);
+  // Validate the move on the client side first (without applying it)
+  const tempChess = new Chess(chess.fen());
+  const result = tempChess.move(move);
 
   if (result) {
+    // Send move to server - server will broadcast back to all clients
     socket.emit("move", move);
-    renderBoard();
   } else {
     console.log("Invalid promotion move");
     showNotification("Invalid promotion move!", "error", 2500);
@@ -763,7 +773,7 @@ const showHints = (square) => {
     const toRow = 8 - parseInt(move.to[1]);
 
     const targetSquare = document.querySelector(
-      `[data-row="${toRow}"][data-col="${toCol}"]`
+      `[data-row="${toRow}"][data-col="${toCol}"]`,
     );
     if (targetSquare) {
       const hint = document.createElement("div");
@@ -870,6 +880,9 @@ const initializeSocketListeners = () => {
     countdownScreen.style.display = "none";
     gameArea.style.display = "flex";
 
+    // Play game start sound
+    playSound("gameStart");
+
     // Show resign button, draw offer button and move history for players (not spectators)
     if (playerRole) {
       resignButton.style.display = "block";
@@ -888,46 +901,58 @@ const initializeSocketListeners = () => {
     messageElement.style.display = "none";
 
     renderBoard();
-    updateMoveHistory();
+    // Note: moveHistory event will update the history separately
+  });
+
+  socket.on("moveHistory", (history) => {
+    updateMoveHistory(history);
   });
 
   socket.on("move", (move) => {
-    const result = chess.move(move);
+    // Don't apply the move here - boardstate event will sync the board
+    // This event is just for sound effects and notifications
     selectedSquare = null;
     clearHints();
-    renderBoard();
-    updateMoveHistory();
 
-    // Play sound for opponent's move
-    if (result) {
-      if (result.flags.includes("k") || result.flags.includes("q")) {
-        playSound("castle");
-      } else if (result.captured) {
-        playSound("capture");
-      } else {
-        playSound("move");
-      }
+    // Determine if this is our move or opponent's move
+    const isOurMove =
+      (move.color === "w" && playerRole === "w") ||
+      (move.color === "b" && playerRole === "b");
 
-      // Check if opponent is in check after this move
-      if (chess.in_check()) {
-        playSound("check");
-      }
+    // Determine sound based on move type (priority: promote > castle > check > capture > move)
+    const isCheck = move.san?.includes("+") || move.san?.includes("#");
+    const isCastle = move.flags?.includes("k") || move.flags?.includes("q");
+    const isCapture = move.captured;
+    const isPromotion = move.flags?.includes("p");
+
+    let soundToPlay;
+    if (isPromotion) {
+      soundToPlay = "promote";
+    } else if (isCastle) {
+      soundToPlay = "castle";
+    } else if (isCheck) {
+      soundToPlay = "check";
+    } else if (isCapture) {
+      soundToPlay = "capture";
+    } else {
+      soundToPlay = isOurMove ? "moveSelf" : "moveOpponent";
     }
 
+    // Play the appropriate sound
+    playSound(soundToPlay);
+
     // Highlight special moves
-    if (result) {
-      if (result.flags.includes("p")) {
-        console.log("Pawn promoted to:", result.promotion);
-        highlightSpecialMove(result.to, "promotion");
-      }
-      if (result.flags.includes("k") || result.flags.includes("q")) {
-        console.log("Castling move");
-        highlightSpecialMove(result.to, "castling");
-      }
-      if (result.flags.includes("e")) {
-        console.log("En passant capture");
-        highlightSpecialMove(result.to, "en-passant");
-      }
+    if (move.flags?.includes("p")) {
+      console.log("Pawn promoted to:", move.promotion);
+      highlightSpecialMove(move.to, "promotion");
+    }
+    if (move.flags?.includes("k") || move.flags?.includes("q")) {
+      console.log("Castling move");
+      highlightSpecialMove(move.to, "castling");
+    }
+    if (move.flags?.includes("e")) {
+      console.log("En passant capture");
+      highlightSpecialMove(move.to, "en-passant");
     }
   });
 
@@ -937,6 +962,9 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("gameResigned", (data) => {
+    // Play game end sound
+    playSound("gameEnd");
+
     // Show game over message
     messageElement.innerText = data.message;
     messageElement.style.display = "block";
@@ -947,7 +975,7 @@ const initializeSocketListeners = () => {
 
     setTimeout(() => {
       alert(
-        `🏳️ Game Over!\n\n${resignedColor} resigned.\n${winnerColor} wins!\n\nGame will restart shortly...`
+        `🏳️ Game Over!\n\n${resignedColor} resigned.\n${winnerColor} wins!\n\nGame will restart shortly...`,
       );
     }, 100);
   });
@@ -974,13 +1002,18 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("timeOut", (data) => {
-    // Hide resign button when game ends
+    // Play game end sound
+    playSound("gameEnd");
+
+    // Hide resign and draw buttons when game ends
     resignButton.style.display = "none";
+    drawOfferButton.style.display = "none";
 
     messageElement.innerText = data.message;
     messageElement.style.display = "block";
 
-    if (data.loser === "White") {
+    const loserColor = data.winner === "white" ? "black" : "white";
+    if (loserColor === "white") {
       whiteTimerElement.textContent = "0:00";
       whiteTimerElement.classList.remove("active");
       whiteTimerElement.classList.add("warning");
@@ -991,6 +1024,39 @@ const initializeSocketListeners = () => {
     }
   });
 
+  socket.on("gameOver", (data) => {
+    // Play game end sound
+    playSound("gameEnd");
+
+    // Hide resign and draw buttons when game ends
+    resignButton.style.display = "none";
+    drawOfferButton.style.display = "none";
+
+    messageElement.innerText = data.message;
+    messageElement.style.display = "block";
+    messageElement.style.backgroundColor =
+      data.result === "draw" ? "#3b82f6" : "#10b981";
+    messageElement.style.color = "white";
+
+    showNotification(data.message, "success", 5000);
+  });
+
+  socket.on("lowTime", (data) => {
+    // Play warning sound when someone has 10 seconds left
+    playSound("tenseconds");
+    const colorName = data.color === "white" ? "White" : "Black";
+    showNotification(
+      `⚠️ ${colorName} has only 10 seconds left!`,
+      "warning",
+      3000,
+    );
+  });
+
+  socket.on("ratingUpdate", (userData) => {
+    console.log("Rating updated:", userData.rating);
+    showNotification(`Your new rating: ${userData.rating}`, "info", 3000);
+  });
+
   socket.on("capturedPiecesUpdate", (capturedPieces) => {
     updateCapturedPieces(capturedPieces);
   });
@@ -998,10 +1064,13 @@ const initializeSocketListeners = () => {
   socket.on("opponentDisconnected", (data) => {
     console.log("Opponent disconnected:", data);
 
+    // Play notification sound
+    playSound("notify");
+
     // Show persistent notification about disconnection
     const notification = showNotification(
       `${data.color} player disconnected. You can wait for them to reconnect or refresh to find a new opponent.`,
-      "disconnect"
+      "disconnect",
     );
 
     // Also show in the message area
@@ -1024,9 +1093,12 @@ const initializeSocketListeners = () => {
   socket.on("opponentReconnected", (data) => {
     console.log("Opponent reconnected:", data);
 
+    // Play notification sound
+    playSound("notify");
+
     // Clear any disconnect messages
     const disconnectNotification = document.querySelector(
-      ".game-notification.disconnect"
+      ".game-notification.disconnect",
     );
     if (disconnectNotification) {
       disconnectNotification.classList.remove("show");
@@ -1044,7 +1116,7 @@ const initializeSocketListeners = () => {
     showNotification(
       `${data.color} player has joined the game!`,
       "success",
-      3000
+      3000,
     );
   });
 
@@ -1064,7 +1136,7 @@ const initializeSocketListeners = () => {
     // Show popup alert
     setTimeout(() => {
       alert(
-        `🤝 Game Over!\n\nDraw accepted by both players.\n\nGame will restart shortly...`
+        `🤝 Game Over!\n\nDraw accepted by both players.\n\nGame will restart shortly...`,
       );
     }, 100);
 
@@ -1073,6 +1145,7 @@ const initializeSocketListeners = () => {
 
   socket.on("drawDeclined", (data) => {
     console.log("Draw offer declined by:", data.color);
+    playSound("notify");
     const colorName = data.color === "w" ? "White" : "Black";
     showNotification(`${colorName} declined the draw offer.`, "warning", 3000);
   });
@@ -1112,12 +1185,12 @@ const initializeSocketListeners = () => {
           <div class="move-pair flex gap-2 py-1 px-2 hover:bg-zinc-700 rounded">
             <span class="move-number text-zinc-400 w-8">${moveNumber}.</span>
             <span class="white-move text-white w-20">${formatMove(
-              whiteMove
+              whiteMove,
             )}</span>
             ${
               blackMove
                 ? `<span class="black-move text-zinc-300 w-20">${formatMove(
-                    blackMove
+                    blackMove,
                   )}</span>`
                 : ""
             }
@@ -1140,25 +1213,19 @@ const updateCapturedPieces = (capturedPieces) => {
   whiteCapturedElement.innerHTML = "";
   blackCapturedElement.innerHTML = "";
 
-  // Display pieces captured by white
-  capturedPieces.white.forEach((piece) => {
+  // Display pieces captured by white (black pieces that were captured)
+  capturedPieces.white.forEach((pieceType) => {
     const pieceElement = document.createElement("span");
-    pieceElement.classList.add(
-      "captured-piece",
-      piece.color === "w" ? "white" : "black"
-    );
-    pieceElement.textContent = getPieceUnicode({ type: piece.type });
+    pieceElement.classList.add("captured-piece", "black");
+    pieceElement.textContent = getPieceUnicode({ type: pieceType, color: "b" });
     whiteCapturedElement.appendChild(pieceElement);
   });
 
-  // Display pieces captured by black
-  capturedPieces.black.forEach((piece) => {
+  // Display pieces captured by black (white pieces that were captured)
+  capturedPieces.black.forEach((pieceType) => {
     const pieceElement = document.createElement("span");
-    pieceElement.classList.add(
-      "captured-piece",
-      piece.color === "w" ? "white" : "black"
-    );
-    pieceElement.textContent = getPieceUnicode({ type: piece.type });
+    pieceElement.classList.add("captured-piece", "white");
+    pieceElement.textContent = getPieceUnicode({ type: pieceType, color: "w" });
     blackCapturedElement.appendChild(pieceElement);
   });
 };
@@ -1196,7 +1263,7 @@ const highlightSpecialMove = (square, type) => {
   const row = 8 - parseInt(square[1]);
 
   const squareElement = document.querySelector(
-    `[data-row="${row}"][data-col="${col}"]`
+    `[data-row="${row}"][data-col="${col}"]`,
   );
 
   if (squareElement) {
