@@ -31,9 +31,13 @@ const handleGameEnd = async (game, io, result, reason) => {
   await ratingManager(game, result, io);
 
   // Notify players about game end
-  const message =
-    reason ||
-    `Game over! ${result === "draw" ? "It's a draw!" : `${result} wins!`}`;
+  let message;
+  if (result === "draw") {
+    message = reason || "It's a draw!";
+  } else {
+    const winner = result.charAt(0).toUpperCase() + result.slice(1);
+    message = reason ? `${reason}. ${winner} wins!` : `${winner} wins!`;
+  }
   io.to(game.id).emit("gameOver", { result, message });
 
   // Clean up the game after a short delay
@@ -139,11 +143,14 @@ module.exports = (io) => {
         const isWhitePlayer = game.players.white === socket.id;
         const result = isWhitePlayer ? "black" : "white";
         const resigningColor = isWhitePlayer ? "White" : "Black";
+        const winnerColor = isWhitePlayer ? "Black" : "White";
 
         stats.resignations++;
 
         io.to(game.id).emit("gameResigned", {
           resignedBy: resigningColor,
+          resignedColor: isWhitePlayer ? "w" : "b",
+          winner: isWhitePlayer ? "b" : "w",
           message: `${resigningColor} resigned`,
         });
 
