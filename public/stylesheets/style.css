@@ -318,6 +318,56 @@
   border-left: 4px solid #991b1b;
 }
 
+/* ===============================================
+   DESKTOP-ONLY GATE
+   =============================================== */
+
+#small-device-screen {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  #desktop-app {
+    display: none !important;
+  }
+
+  #small-device-screen {
+    min-height: 100vh;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: linear-gradient(180deg, #18181b 0%, #09090b 100%);
+  }
+
+  .small-device-content {
+    max-width: 480px;
+    text-align: center;
+    padding: 28px;
+    border-radius: 14px;
+    border: 1px solid #3f3f46;
+    background: #18181b;
+    color: #f4f4f5;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  .small-device-content h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .small-device-content p {
+    color: #d4d4d8;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .small-device-content p + p {
+    margin-top: 8px;
+  }
+}
+
 .game-notification.info {
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   border-left: 4px solid #1e40af;
@@ -464,11 +514,11 @@
 
 /* Desktop & Large Tablets (≤1200px) */
 @media (max-width: 1200px) {
-    .chessboard {
+  .chessboard {
     width: 480px !important;
     height: 480px !important;
   }
-  
+
   .piece {
     font-size: 48px;
   }
@@ -492,6 +542,21 @@
 
 /* Mobile (≤768px) */
 @media (max-width: 768px) {
+  /* User Info Bar */
+  .fixed.top-0 {
+    padding: 0.5rem 0.75rem !important;
+  }
+
+  .fixed.top-0 .flex.items-center.gap-4 {
+    gap: 0.5rem !important;
+    flex-wrap: wrap;
+  }
+
+  .fixed.top-0 .flex.items-center.gap-3 {
+    gap: 0.5rem !important;
+    font-size: 0.75rem !important;
+  }
+
   #game-area {
     padding: 1rem !important;
   }
@@ -513,7 +578,6 @@
 
   .left-panel {
     gap: 1rem;
-    max-width: 450px;
   }
 
   .player-info {
@@ -531,7 +595,7 @@
   }
 
   .move-history-container {
-    max-width: 450px;
+    display: none !important;
   }
 
   .move-history {
@@ -554,6 +618,45 @@
 
 /* Small Mobile (≤480px) */
 @media (max-width: 480px) {
+  /* User Info Bar */
+  .fixed.top-0 {
+    padding: 0.5rem !important;
+  }
+
+  .fixed.top-0 .max-w-7xl {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .fixed.top-0 .flex.items-center.gap-4 {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.25rem !important;
+    width: 100%;
+  }
+
+  .fixed.top-0 .flex.items-center.gap-3 {
+    flex-wrap: wrap;
+    gap: 0.375rem !important;
+    font-size: 0.7rem !important;
+  }
+
+  .fixed.top-0 .text-white.font-bold {
+    font-size: 0.875rem;
+  }
+
+  .fixed.top-0 .bg-green-600 {
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.7rem !important;
+  }
+
+  .fixed.top-0 .bg-red-600 {
+    padding: 0.5rem 1rem !important;
+    font-size: 0.75rem !important;
+    width: 100%;
+    text-align: center;
+  }
+
   #game-area {
     padding: 0.5rem !important;
   }
@@ -645,6 +748,25 @@
 
 /* Very Small Mobile (≤360px) */
 @media (max-width: 360px) {
+  /* User Info Bar */
+  .fixed.top-0 {
+    padding: 0.375rem !important;
+  }
+
+  .fixed.top-0 .text-white.font-bold {
+    font-size: 0.75rem;
+  }
+
+  .fixed.top-0 .flex.items-center.gap-3 span {
+    font-size: 0.625rem !important;
+  }
+
+  .fixed.top-0 .bg-blue-600,
+  .fixed.top-0 .bg-yellow-400 {
+    font-size: 0.625rem !important;
+    padding: 0.125rem 0.375rem !important;
+  }
+
   .chessboard {
     width: 98vw !important;
     height: 98vw !important;

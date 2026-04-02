@@ -9,6 +9,17 @@
     <link rel="stylesheet" href="/stylesheets/style.css" />
   </head>
   <body>
+    <div id="small-device-screen" style="display: none">
+      <div class="small-device-content">
+        <h1>Desktop Screen Required</h1>
+        <p>
+          This chess experience is available only on bigger screens.
+        </p>
+        <p>Please open this page on a laptop or desktop.</p>
+      </div>
+    </div>
+
+    <div id="desktop-app">
     <!-- User Info Bar (if logged in) -->
     <% if (typeof user !== 'undefined' && user) { %>
     <div class="fixed top-0 left-0 right-0 bg-zinc-800 border-b border-zinc-700 px-4 py-3 z-50">
@@ -117,7 +128,7 @@
     >
       <div class="game-container flex xl:gap-8 gap-2 items-start max-w-7xl">
         <!-- Left Side Panel -->
-       <div class="left-panel flex flex-col xl:gap-6 lg:gap-4 xl:w-80 lg:w-60">
+       <div class="left-panel flex flex-col xl:gap-6 lg:gap-4 xl:w-80 lg:w-60 md:w-50">
           <!-- Turn display -->
           <div
             class="turn-display font-bold text-white text-center text-2xl bg-zinc-800 px-6 py-4 rounded-lg shadow-lg"
@@ -252,5 +263,6 @@
       referrerpolicy="no-referrer"
     ></script>
     <script src="/javascripts/script.js"></script>
+    </div>
   </body>
 </html>
