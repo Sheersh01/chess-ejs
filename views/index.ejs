@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chess.com</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" href="/images/favicon.png" />
     <link rel="stylesheet" href="/stylesheets/style.css" />
   </head>
@@ -26,19 +25,22 @@
       <header class="app-topbar">
         <div class="container">
           <div class="topbar-card">
-            <div class="brand-lockup">
+            <div class="topbar-glow" aria-hidden="true"></div>
+            <div class="brand-lockup topbar-reveal">
               <div class="brand-mark">♔</div>
-              <div>
+              <div class="brand-copy">
+                <div class="brand-kicker">
+                  <span class="brand-pulse"></span>
+                  Live lobby
+                </div>
                 <h2><%= user.displayName || user.username %></h2>
-                <p>
-                  Queue up for a match, tune your board, and keep the pressure on.
-                </p>
+                <p>Queue up for a match, tune your board, and keep the pressure on.</p>
               </div>
             </div>
 
-            <div class="topbar-meta">
+            <div class="topbar-meta topbar-reveal topbar-reveal-delay-1">
               <div class="player-summary">
-                <div class="status-pill">
+                <div class="status-pill status-pill-strong">
                   <strong>Rating</strong>
                   <span><%= user.rating %></span>
                 </div>
@@ -62,11 +64,13 @@
                 <% } %>
               </div>
 
-              <a href="/" class="btn btn-ghost">Home</a>
-              <a href="/profile" class="btn btn-ghost">Profile</a>
-              <a href="/auth/logout" class="btn btn-danger">
-                <%= user.isGuest ? 'Exit' : 'Logout' %>
-              </a>
+              <div class="topbar-actions topbar-reveal topbar-reveal-delay-2">
+                <a href="/" class="btn btn-ghost nav-btn nav-btn-active">Home</a>
+                <a href="/profile" class="btn btn-ghost nav-btn">Profile</a>
+                <a href="/auth/logout" class="btn btn-danger nav-btn">
+                  <%= user.isGuest ? 'Exit' : 'Logout' %>
+                </a>
+              </div>
             </div>
           </div>
         </div>

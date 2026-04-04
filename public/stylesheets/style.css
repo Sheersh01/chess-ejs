@@ -37,17 +37,8 @@ body {
     radial-gradient(circle at top right, rgba(75, 169, 255, 0.17), transparent 28%),
     radial-gradient(circle at bottom center, rgba(240, 162, 77, 0.12), transparent 34%),
     linear-gradient(145deg, var(--page-bg) 0%, #07101c 46%, var(--page-bg-strong) 100%);
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button,
-input,
-select {
-  font: inherit;
+  scrollbar-width: thin;
+  scrollbar-coont: inherit;
 }
 
 .page-grid {
@@ -374,21 +365,39 @@ select {
 }
 
 .topbar-card {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 18px 22px;
-  border-radius: 22px;
-  background: rgba(10, 20, 36, 0.84);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 24px;
+  padding: 5px 20px;
+  margin: 0 10px;
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 42%),
+    rgba(8, 18, 34, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow: var(--shadow-lg);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.topbar-glow {
+  position: absolute;
+  inset: -40% auto auto -12%;
+  width: 260px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(79, 209, 166, 0.22), transparent 68%);
+  filter: blur(10px);
+  pointer-events: none;
+  animation: navbar-float 7s ease-in-out infinite;
 }
 
 .brand-lockup {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
 }
 
 .brand-mark {
@@ -400,6 +409,34 @@ select {
   background: linear-gradient(135deg, rgba(79, 209, 166, 0.18), rgba(75, 169, 255, 0.18));
   border: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 1.7rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.24);
+  animation: navbar-mark-float 4.8s ease-in-out infinite;
+}
+
+.brand-copy {
+  min-width: 0;
+}
+
+.brand-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--text-soft);
+  font-size: 0.73rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.brand-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8ff5d4, var(--brand));
+  box-shadow: 0 0 16px rgba(79, 209, 166, 0.65);
+  animation: navbar-pulse 1.8s ease-in-out infinite;
 }
 
 .brand-lockup p {
@@ -417,6 +454,14 @@ select {
   gap: 12px;
 }
 
+.topbar-meta {
+  justify-content: flex-end;
+}
+
+.player-summary {
+  gap: 10px;
+}
+
 .guest-tag {
   padding: 6px 10px;
   border-radius: 999px;
@@ -425,6 +470,73 @@ select {
   border: 1px solid rgba(75, 169, 255, 0.26);
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+.status-pill-strong {
+  background:
+    linear-gradient(135deg, rgba(79, 209, 166, 0.16), rgba(75, 169, 255, 0.1)),
+    rgba(255, 255, 255, 0.05);
+  border-color: rgba(79, 209, 166, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nav-btn {
+  position: relative;
+  min-width: 108px;
+  padding-inline: 18px;
+  overflow: hidden;
+}
+
+.nav-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.16) 50%, transparent 100%);
+  transform: translateX(-135%);
+  transition: transform 0.6s ease;
+}
+
+.nav-btn:hover::before {
+  transform: translateX(135%);
+}
+
+.nav-btn-active {
+  border-color: rgba(79, 209, 166, 0.24);
+  background:
+    linear-gradient(135deg, rgba(79, 209, 166, 0.14), rgba(75, 169, 255, 0.08)),
+    rgba(255, 255, 255, 0.05);
+}
+
+.nav-btn-active::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand), #9feeda);
+  box-shadow: 0 0 16px rgba(79, 209, 166, 0.45);
+}
+
+.topbar-reveal {
+  opacity: 0;
+  transform: translateY(-10px);
+  animation: navbar-reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.topbar-reveal-delay-1 {
+  animation-delay: 0.08s;
+}
+
+.topbar-reveal-delay-2 {
+  animation-delay: 0.16s;
 }
 
 .landing-wrap,
@@ -442,7 +554,7 @@ select {
   display: flex;
   align-items: center;
   /* padding: 48px 0 64px; */
-  height: 80vh;
+  min-height: 80vh;
 }
 
 .landing-grid,
@@ -1171,6 +1283,49 @@ display: grid;
   to { transform: rotate(360deg); }
 }
 
+@keyframes navbar-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes navbar-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(18px, 12px, 0);
+  }
+}
+
+@keyframes navbar-mark-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes navbar-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.82;
+    transform: scale(1.18);
+  }
+}
+
 @keyframes countdown-pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.08); }
@@ -1186,82 +1341,3 @@ display: grid;
   100% { box-shadow: inset 0 0 0 28px rgba(79, 209, 166, 0); }
 }
 
-@media (max-width: 1180px) {
-  .landing-grid,
-  .profile-grid,
-  .game-layout,
-  .split-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 1023px) {
-  #desktop-app {
-    display: none !important;
-  }
-
-  #small-device-screen {
-    display: grid !important;
-    min-height: 100vh;
-    place-items: center;
-    padding: 24px;
-  }
-}
-
-@media (max-width: 900px) {
-  .hero-stats,
-  .auth-metrics,
-  .settings-grid,
-  .identity-grid,
-  .color-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .topbar-card,
-  .profile-header,
-  .board-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-@media (max-width: 720px) {
-  .container,
-  .landing-wrap,
-  .state-wrap,
-  .game-wrap,
-  .profile-wrap {
-    width: min(100% - 24px, 100%);
-  }
-
-  .hero-panel,
-  .sidebar-panel,
-  .state-panel,
-  .profile-panel,
-  .player-card,
-  .board-panel,
-  .game-controls-card,
-  .move-history-container,
-  .auth-card {
-    padding: 22px;
-  }
-
-  .hero-button {
-    min-width: 100%;
-  }
-
-  .controls-row {
-    flex-direction: column;
-  }
-
-  .control-button {
-    width: 100%;
-  }
-
-  .game-notification {
-    left: 12px;
-    right: 12px;
-    top: 12px;
-    max-width: none;
-  }
-}
