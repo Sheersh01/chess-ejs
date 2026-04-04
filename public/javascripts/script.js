@@ -14,7 +14,13 @@ const landingScreen = document.getElementById("landing-screen");
 const findingMatchScreen = document.getElementById("finding-match-screen");
 const countdownScreen = document.getElementById("countdown-screen");
 const gameArea = document.getElementById("game-area");
-const playButton = document.getElementById("play-button");
+const playOnlineButton = document.getElementById("play-online-button");
+const playBotButton = document.getElementById("play-bot-button");
+const colorPreferenceSelect = document.getElementById(
+  "color-preference-select",
+);
+const botDifficultySelect = document.getElementById("bot-difficulty-select");
+const botPersonalitySelect = document.getElementById("bot-personality-select");
 const findingMatchText = document.getElementById("finding-match-text");
 const findingMatchSubtext = document.getElementById("finding-match-subtext");
 const findingMatchStatus = document.getElementById("finding-match-status");
@@ -165,11 +171,37 @@ const updateMoveHistory = (history = null) => {
   }
 };
 
-// Handle Play button click
-playButton.addEventListener("click", () => {
+const getSelectedColorPreference = () =>
+  colorPreferenceSelect?.value || "random";
+
+const getSelectedColorLabel = () => {
+  const selectedColor = getSelectedColorPreference();
+  if (selectedColor === "white") return "White";
+  if (selectedColor === "black") return "Black";
+  return "Random";
+};
+
+const showMatchmakingScreenForMode = (mode) => {
+  const colorLabel = getSelectedColorLabel();
+
+  if (mode === "bot") {
+    const difficulty = botDifficultySelect?.value || "medium";
+    const personality = botPersonalitySelect?.value || "positional";
+    findingMatchText.textContent = "Preparing bot match...";
+    findingMatchSubtext.textContent = `Difficulty: ${difficulty.toUpperCase()} | Style: ${personality} | Color: ${colorLabel}`;
+    findingMatchStatus.textContent = `Starting color: ${colorLabel}`;
+  } else {
+    findingMatchText.textContent = "Finding a match...";
+    findingMatchSubtext.textContent = `Preferred color: ${colorLabel}`;
+    findingMatchStatus.textContent = "Connecting you with a compatible opponent";
+  }
+};
+
+const requestMatchForMode = (mode) => {
   // Hide landing screen and show finding match screen
   landingScreen.style.display = "none";
   findingMatchScreen.style.display = "flex";
+  showMatchmakingScreenForMode(mode);
 
   // Initialize socket connection
   if (!socket) {
@@ -177,6 +209,27 @@ playButton.addEventListener("click", () => {
     initializeSocketListeners();
     gameStarted = true;
   }
+
+  if (mode === "bot") {
+    socket.emit("playBot", {
+      colorPreference: getSelectedColorPreference(),
+      difficulty: botDifficultySelect?.value || "medium",
+      personality: botPersonalitySelect?.value || "positional",
+    });
+  } else {
+    socket.emit("findMatch", {
+      colorPreference: getSelectedColorPreference(),
+    });
+  }
+};
+
+// Handle Play buttons
+playOnlineButton.addEventListener("click", () => {
+  requestMatchForMode("online");
+});
+
+playBotButton.addEventListener("click", () => {
+  requestMatchForMode("bot");
 });
 
 // Handle Resign button click
@@ -857,6 +910,17 @@ const initializeSocketListeners = () => {
     findingMatchSubtext.textContent = "Looking for an available player";
     findingMatchStatus.textContent =
       "You will be matched with the next available player";
+  });
+
+  socket.on("waitingForBotMatch", () => {
+    findingMatchScreen.style.display = "flex";
+    gameArea.style.display = "none";
+    const difficulty = botDifficultySelect?.value || "medium";
+    const personality = botPersonalitySelect?.value || "positional";
+    const colorLabel = getSelectedColorLabel();
+    findingMatchText.textContent = "Preparing bot match...";
+    findingMatchSubtext.textContent =             `Chess Bot: ${difficulty.toUpperCase()} | ${personality} | ${colorLabel}`;
+    findingMatchStatus.textContent = "Game starts after countdown";
   });
 
   socket.on("waitingForOpponent", () => {

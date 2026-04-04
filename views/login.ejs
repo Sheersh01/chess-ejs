@@ -6,121 +6,89 @@
     <title>Login - Chess Game</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" href="/images/favicon.png" />
+    <link rel="stylesheet" href="/stylesheets/style.css" />
   </head>
-  <body class="bg-zinc-900 min-h-screen">
-    <div
-      class="w-full min-h-screen flex items-center justify-center px-4 py-8"
-    >
-      <div class="max-w-md w-full">
-        <!-- Header -->
-        <div class="text-center mb-8">
-          <h1 class="text-4xl sm:text-5xl font-bold text-white mb-2">
-            ♔ Chess Game ♚
-          </h1>
-          <p class="text-zinc-400 text-sm sm:text-base">
-            Sign in to start playing
+  <body>
+    <div class="page-grid"></div>
+    <main class="page-shell">
+      <div class="container split-layout">
+        <section class="auth-hero">
+          <span class="eyebrow">Sharper matches, cleaner focus</span>
+          <h1 class="headline">Enter the board like it matters.</h1>
+          <p>
+            Jump into real-time matches, tune your board style, and keep your
+            rating climbing in a cleaner, more immersive chess experience.
           </p>
-        </div>
 
-        <!-- Login Form -->
-        <div class="bg-zinc-800 rounded-lg shadow-2xl p-6 sm:p-8">
-          <h2 class="text-2xl font-bold text-white mb-6 text-center">
-            Welcome Back
-          </h2>
+          <div class="auth-metrics">
+            <div class="metric-card">
+              <strong>10 min</strong>
+              <span>Per-player rapid games built for momentum.</span>
+            </div>
+            <div class="metric-card">
+              <strong>Live</strong>
+              <span>Instant matchmaking and bot practice from one home screen.</span>
+            </div>
+            <div class="metric-card">
+              <strong>Custom</strong>
+              <span>Personal board colors and profile identity settings.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="auth-card panel-card">
+          <div>
+            <h2>Welcome back</h2>
+            <p>Sign in to continue your next match.</p>
+          </div>
 
           <% if (error) { %>
-          <div
-            class="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded-lg mb-6"
-            role="alert"
-          >
-            <p class="text-sm"><%= error %></p>
-          </div>
+          <div class="flash flash-error" role="alert"><%= error %></div>
           <% } %>
 
-          <form action="/auth/login" method="POST" class="space-y-5">
-            <!-- Email -->
-            <div>
-              <label
-                for="email"
-                class="block text-sm font-medium text-zinc-300 mb-2"
-              >
-                Email Address
-              </label>
+          <form action="/auth/login" method="POST" class="auth-form">
+            <div class="field-group">
+              <label for="email" class="field-label">Email Address</label>
               <input
                 type="email"
                 id="email"
                 name="email"
                 value="<%= email %>"
                 required
-                class="w-full px-4 py-3 bg-zinc-700 text-white border border-zinc-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                class="field-input"
                 placeholder="your@email.com"
               />
             </div>
 
-            <!-- Password -->
-            <div>
-              <label
-                for="password"
-                class="block text-sm font-medium text-zinc-300 mb-2"
-              >
-                Password
-              </label>
+            <div class="field-group">
+              <label for="password" class="field-label">Password</label>
               <input
                 type="password"
                 id="password"
                 name="password"
                 required
-                class="w-full px-4 py-3 bg-zinc-700 text-white border border-zinc-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                class="field-input"
                 placeholder="Enter your password"
               />
             </div>
 
-            <!-- Submit Button -->
-            <button
-              type="submit"
-              class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105 active:scale-95 shadow-lg"
-            >
-              Sign In
-            </button>
+            <button type="submit" class="btn btn-primary">Sign In</button>
           </form>
 
-          <!-- Divider -->
-          <div class="relative my-6">
-            <div class="absolute inset-0 flex items-center">
-              <div class="w-full border-t border-zinc-600"></div>
-            </div>
-            <div class="relative flex justify-center text-sm">
-              <span class="px-4 bg-zinc-800 text-zinc-400">OR</span>
-            </div>
-          </div>
+          <div class="auth-divider"><span>or</span></div>
 
-          <!-- Guest Play Button -->
           <form action="/auth/guest" method="POST">
-            <button
-              type="submit"
-              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition transform hover:scale-105 active:scale-95 shadow-lg flex items-center justify-center gap-2"
-            >
-              <span>🎮</span>
-              <span>Play as Guest</span>
+            <button type="submit" class="btn btn-info" style="width: 100%">
+              <span>Quick guest match</span>
             </button>
           </form>
 
-          <!-- Register Link -->
-          <div class="mt-6 text-center">
-            <p class="text-zinc-400 text-sm">
-              Don't have an account?
-              <a
-                href="/auth/register"
-                class="text-green-500 hover:text-green-400 font-semibold transition"
-              >
-                Sign up here
-              </a>
-            </p>
+          <div class="auth-footer">
+            Don't have an account?
+            <a href="/auth/register">Create one here</a>
           </div>
-        </div>
-
-       
+        </section>
       </div>
-    </div>
+    </main>
   </body>
 </html>

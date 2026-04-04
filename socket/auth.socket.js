@@ -24,11 +24,17 @@ module.exports = (io) => {
           _id: decoded.id,
           id: decoded.id,
           username: decoded.username,
+          displayName: decoded.username,
           rating: decoded.rating,
           gamesPlayed: decoded.gamesPlayed || 0,
           wins: decoded.wins || 0,
           losses: decoded.losses || 0,
           draws: decoded.draws || 0,
+          settings: {
+            boardLight: "#f0d9b5",
+            boardDark: "#b58863",
+            hintColor: "#14551e",
+          },
           isGuest: true,
         };
         console.log(`Guest user authenticated: ${socket.user.username}`);

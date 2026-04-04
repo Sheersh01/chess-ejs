@@ -4,16 +4,32 @@ const gameStats = require("../stats/gameStats").stats;
 const games = new Map();
 const socketToGame = new Map();
 
+const isSocketPlayer = (playerId) =>
+  typeof playerId === "string" && !playerId.startsWith("bot_");
+
 const generateGameId = () =>
   `game_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
-const createGame = (white, black, whiteUserId, blackUserId) => {
+const createGame = (white, black, whiteUserId, blackUserId, options = {}) => {
   const id = generateGameId();
+  const isBotGame = Boolean(options.isBotGame);
   const game = {
     id,
     chess: new Chess(),
     players: { white, black },
     userIds: { white: whiteUserId, black: blackUserId },
+    isBotGame,
+    bot:
+      isBotGame && options.botColor
+        ? {
+            color: options.botColor,
+            thinkTimeMs: options.thinkTimeMs || 500,
+            difficulty: options.difficulty || "medium",
+            personality: options.personality || "positional",
+            humanColor: options.humanColor || "w",
+            pendingMoveTimeout: null,
+          }
+        : null,
     timers: { white: 600, black: 600 },
     scores: { w: 0, b: 0 },
     capturedPieces: { white: [], black: [] },
@@ -22,8 +38,12 @@ const createGame = (white, black, whiteUserId, blackUserId) => {
   };
 
   games.set(id, game);
-  socketToGame.set(white, id);
-  socketToGame.set(black, id);
+  if (isSocketPlayer(white)) {
+    socketToGame.set(white, id);
+  }
+  if (isSocketPlayer(black)) {
+    socketToGame.set(black, id);
+  }
   gameStats.totalGames++;
 
   return game;
@@ -38,9 +58,17 @@ const cleanupGame = (gameId) => {
   const game = games.get(gameId);
   if (game) {
     if (game.timerInterval) clearInterval(game.timerInterval);
+    if (game.bot?.pendingMoveTimeout) {
+      clearTimeout(game.bot.pendingMoveTimeout);
+      game.bot.pendingMoveTimeout = null;
+    }
     // Remove socket mappings
-    socketToGame.delete(game.players.white);
-    socketToGame.delete(game.players.black);
+    if (isSocketPlayer(game.players.white)) {
+      socketToGame.delete(game.players.white);
+    }
+    if (isSocketPlayer(game.players.black)) {
+      socketToGame.delete(game.players.black);
+    }
     // Remove game
     games.delete(gameId);
   }

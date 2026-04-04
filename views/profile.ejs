@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Profile Settings - Chess Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="/images/favicon.png" />
+    <link rel="stylesheet" href="/stylesheets/style.css" />
+  </head>
+  <body>
+    <div class="page-grid"></div>
+    <main class="page-shell">
+      <div class="profile-wrap">
+        <div class="container">
+          <div class="profile-header">
+            <div>
+              <span class="eyebrow">Profile Studio</span>
+              <h1>Shape your identity and the board beneath it.</h1>
+              <p>
+                Update how your name appears, tune your board colors, and preview
+                the atmosphere before you jump back into a game.
+              </p>
+            </div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap">
+              <a href="/" class="btn btn-ghost">Home</a>
+              <a href="/" class="btn btn-ghost">Back to Game</a>
+            </div>
+          </div>
+
+          <% if (error) { %>
+          <div class="flash flash-error" style="margin-bottom: 18px"><%= error %></div>
+          <% } %>
+
+          <% if (success) { %>
+          <div class="flash flash-success" style="margin-bottom: 18px"><%= success %></div>
+          <% } %>
+
+          <form action="/profile" method="POST" class="profile-panel panel-card">
+            <div class="profile-grid">
+              <div class="profile-section">
+                <section class="profile-section">
+                  <div class="section-heading">
+                    <h2>Identity</h2>
+                    <p>Keep your public profile clean, readable, and recognizable.</p>
+                  </div>
+
+                  <div class="identity-grid">
+                    <div class="field-group">
+                      <label for="username" class="field-label">Username</label>
+                      <input
+                        id="username"
+                        name="username"
+                        type="text"
+                        required
+                        minlength="3"
+                        maxlength="20"
+                        value="<%= user.username %>"
+                        class="field-input"
+                      />
+                    </div>
+
+                    <div class="field-group">
+                      <label for="displayName" class="field-label">Display Name</label>
+                      <input
+                        id="displayName"
+                        name="displayName"
+                        type="text"
+                        maxlength="30"
+                        value="<%= user.displayName || '' %>"
+                        placeholder="How your name appears in UI"
+                        class="field-input"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section class="profile-section">
+                  <div class="section-heading">
+                    <h2>Board Palette</h2>
+                    <p>Choose a board personality that still keeps your moves readable.</p>
+                  </div>
+
+                  <div class="color-grid">
+                    <div class="color-field">
+                      <label for="boardLight" class="field-label">Light Tiles</label>
+                      <div class="color-input-row">
+                        <input
+                          id="boardLight"
+                          name="boardLight"
+                          type="color"
+                          value="<%= user.settings?.boardLight || '#f0d9b5' %>"
+                          class="color-picker"
+                        />
+                        <input
+                          id="boardLightText"
+                          type="text"
+                          value="<%= user.settings?.boardLight || '#f0d9b5' %>"
+                          class="field-text"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="color-field">
+                      <label for="boardDark" class="field-label">Dark Tiles</label>
+                      <div class="color-input-row">
+                        <input
+                          id="boardDark"
+                          name="boardDark"
+                          type="color"
+                          value="<%= user.settings?.boardDark || '#b58863' %>"
+                          class="color-picker"
+                        />
+                        <input
+                          id="boardDarkText"
+                          type="text"
+                          value="<%= user.settings?.boardDark || '#b58863' %>"
+                          class="field-text"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="color-field">
+                      <label for="hintColor" class="field-label">Hint Color</label>
+                      <div class="color-input-row">
+                        <input
+                          id="hintColor"
+                          name="hintColor"
+                          type="color"
+                          value="<%= user.settings?.hintColor || '#14551e' %>"
+                          class="color-picker"
+                        />
+                        <input
+                          id="hintColorText"
+                          type="text"
+                          value="<%= user.settings?.hintColor || '#14551e' %>"
+                          class="field-text"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <div class="profile-actions">
+                  <button type="submit" class="btn btn-primary">Save Settings</button>
+                  <a href="/" class="btn btn-ghost">Cancel</a>
+                </div>
+              </div>
+
+              <aside class="preview-panel">
+                <div class="section-heading">
+                  <h2>Live Preview</h2>
+                  <p>Adjust colors and see the board update instantly.</p>
+                </div>
+
+                <div class="board-preview-shell">
+                  <div class="preview-board">
+                    <% for (let i = 0; i < 16; i++) { %>
+                    <div class="preview-square" data-index="<%= i %>"></div>
+                    <% } %>
+                  </div>
+                </div>
+
+                <div class="feature-list">
+                  <div class="feature-row">
+                    <div class="feature-icon">A</div>
+                    <div>
+                      <strong>Readable contrast</strong>
+                      <span>Try color pairs with enough separation for fast piece recognition.</span>
+                    </div>
+                  </div>
+                  <div class="feature-row">
+                    <div class="feature-icon">B</div>
+                    <div>
+                      <strong>Hint visibility</strong>
+                      <span>Pick a hint color that stands out clearly on both tile shades.</span>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const syncColor = (colorId, textId) => {
+        const colorInput = document.getElementById(colorId);
+        const textInput = document.getElementById(textId);
+
+        const applyPreview = () => {
+          const light = document.getElementById("boardLight").value;
+          const dark = document.getElementById("boardDark").value;
+          const squares = document.querySelectorAll(".preview-square");
+          squares.forEach((square, index) => {
+            const row = Math.floor(index / 4);
+            const col = index % 4;
+            square.style.background = (row + col) % 2 === 0 ? light : dark;
+          });
+        };
+
+        colorInput.addEventListener("input", () => {
+          textInput.value = colorInput.value;
+          applyPreview();
+        });
+
+        textInput.addEventListener("change", () => {
+          if (/^#[0-9A-Fa-f]{6}$/.test(textInput.value)) {
+            colorInput.value = textInput.value;
+            applyPreview();
+          } else {
+            textInput.value = colorInput.value;
+          }
+        });
+
+        applyPreview();
+      };
+
+      syncColor("boardLight", "boardLightText");
+      syncColor("boardDark", "boardDarkText");
+      syncColor("hintColor", "hintColorText");
+    </script>
+  </body>
+</html>

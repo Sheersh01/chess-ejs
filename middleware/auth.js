@@ -30,11 +30,17 @@ exports.protect = async (req, res, next) => {
         _id: decoded.id,
         id: decoded.id,
         username: decoded.username,
+        displayName: decoded.username,
         rating: decoded.rating,
         gamesPlayed: decoded.gamesPlayed,
         wins: decoded.wins,
         losses: decoded.losses,
         draws: decoded.draws,
+        settings: {
+          boardLight: "#f0d9b5",
+          boardDark: "#b58863",
+          hintColor: "#14551e",
+        },
         isGuest: true,
       };
     } else {
@@ -69,11 +75,17 @@ exports.isAuthenticated = async (req, res, next) => {
           _id: decoded.id,
           id: decoded.id,
           username: decoded.username,
+          displayName: decoded.username,
           rating: decoded.rating,
           gamesPlayed: decoded.gamesPlayed,
           wins: decoded.wins,
           losses: decoded.losses,
           draws: decoded.draws,
+          settings: {
+            boardLight: "#f0d9b5",
+            boardDark: "#b58863",
+            hintColor: "#14551e",
+          },
           isGuest: true,
         };
       } else {

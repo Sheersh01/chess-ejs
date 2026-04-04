@@ -8,261 +8,341 @@
     <link rel="icon" href="/images/favicon.png" />
     <link rel="stylesheet" href="/stylesheets/style.css" />
   </head>
-  <body>
+  <body
+    style="--board-light:<%= user?.settings?.boardLight || '#f0d9b5' %>; --board-dark:<%= user?.settings?.boardDark || '#b58863' %>; --hint-color:<%= user?.settings?.hintColor || '#14551e' %>;"
+  >
+    <div class="page-grid"></div>
+
     <div id="small-device-screen" style="display: none">
       <div class="small-device-content">
         <h1>Desktop Screen Required</h1>
-        <p>
-          This chess experience is available only on bigger screens.
-        </p>
-        <p>Please open this page on a laptop or desktop.</p>
+        <p>This chess experience is built for larger screens.</p>
+        <p>Please open it on a laptop or desktop for the full match view.</p>
       </div>
     </div>
 
-    <div id="desktop-app">
-    <!-- User Info Bar (if logged in) -->
-    <% if (typeof user !== 'undefined' && user) { %>
-    <div class="fixed top-0 left-0 right-0 bg-zinc-800 border-b border-zinc-700 px-4 py-3 z-50">
-      <div class="max-w-7xl mx-auto flex justify-between items-center">
-        <div class="flex items-center gap-4">
-          <div class="text-white font-bold flex items-center gap-2">
-            ♔ <%= user.username %>
-            <% if (user.isGuest) { %>
-            <span class="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">GUEST</span>
-            <% } %>
-          </div>
-          <div class="flex items-center gap-3 text-sm">
-            <span class="bg-green-600 px-3 py-1 rounded-full text-white font-semibold">
-              Rating: <%= user.rating %>
-            </span>
-            <% if (!user.isGuest) { %>
-            <span class="text-zinc-400">
-              W: <%= user.wins %> | L: <%= user.losses %> | D: <%= user.draws %>
-            </span>
-            <% } else { %>
-            <span class="text-yellow-400 text-xs">
-              ⚠️ Stats not saved for guests
-            </span>
-            <% } %>
+    <div id="desktop-app" class="page-shell">
+      <% if (typeof user !== 'undefined' && user) { %>
+      <header class="app-topbar">
+        <div class="container">
+          <div class="topbar-card">
+            <div class="brand-lockup">
+              <div class="brand-mark">♔</div>
+              <div>
+                <h2><%= user.displayName || user.username %></h2>
+                <p>
+                  Queue up for a match, tune your board, and keep the pressure on.
+                </p>
+              </div>
+            </div>
+
+            <div class="topbar-meta">
+              <div class="player-summary">
+                <div class="status-pill">
+                  <strong>Rating</strong>
+                  <span><%= user.rating %></span>
+                </div>
+
+                <% if (user.isGuest) { %>
+                <div class="guest-tag">Guest</div>
+                <div class="status-pill">Stats are not saved for guests</div>
+                <% } else { %>
+                <div class="status-pill">
+                  <strong>W</strong>
+                  <span><%= user.wins %></span>
+                </div>
+                <div class="status-pill">
+                  <strong>L</strong>
+                  <span><%= user.losses %></span>
+                </div>
+                <div class="status-pill">
+                  <strong>D</strong>
+                  <span><%= user.draws %></span>
+                </div>
+                <% } %>
+              </div>
+
+              <a href="/" class="btn btn-ghost">Home</a>
+              <a href="/profile" class="btn btn-ghost">Profile</a>
+              <a href="/auth/logout" class="btn btn-danger">
+                <%= user.isGuest ? 'Exit' : 'Logout' %>
+              </a>
+            </div>
           </div>
         </div>
-        <a
-          href="/auth/logout"
-          class="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-lg transition"
-        >
-          <%= user.isGuest ? 'Exit' : 'Logout' %>
-        </a>
-      </div>
-    </div>
-    <% } %>
+      </header>
+      <% } %>
 
-    <!-- Landing Screen -->
-    <div
-      id="landing-screen"
-      class="w-full min-h-screen bg-zinc-900 flex items-center justify-center flex-col gap-8"
-    >
-      <div class="text-center">
-        <h1 class="text-6xl font-bold text-white mb-4">♔ Chess Game ♚</h1>
-        <p class="text-xl text-zinc-400 mb-8">
-          Challenge your opponent in a classic chess match
-        </p>
-      </div>
+      <section id="landing-screen" class="landing-wrap">
+        <div class="landing-grid">
+          <div class="hero-panel panel-card">
+            <span class="eyebrow">Modern Chess Arena</span>
+            <h1 class="headline">Play sharper games in a room that feels alive.</h1>
+            <p class="hero-copy">
+              Queue for a live opponent, train against a tuned bot, and move
+              through a cleaner interface built around focus, tempo, and board
+              clarity.
+            </p>
 
-      <button
-        id="play-button"
-        class="bg-green-600 hover:bg-green-700 text-white font-bold text-2xl px-12 py-6 rounded-lg shadow-lg transform transition hover:scale-105 active:scale-95"
-      >
-        Play Game
-      </button>
+            <div class="hero-actions">
+              <button id="play-online-button" class="btn btn-primary hero-button">
+                <span>
+                  Play Online
+                  <small>Match with a real opponent</small>
+                </span>
+                <strong>Live</strong>
+              </button>
 
-      <div class="text-center text-zinc-500 text-sm">
-        <p>10 minutes per player • Real-time multiplayer</p>
-      </div>
-    </div>
+              <button id="play-bot-button" class="btn btn-secondary hero-button">
+                <span>
+                  Play vs Bot
+                  <small>Practice with adjustable styles</small>
+                </span>
+                <strong>AI</strong>
+              </button>
+            </div>
 
-    <!-- Finding Match Screen -->
-    <div
-      id="finding-match-screen"
-      class="w-full min-h-screen bg-zinc-900 flex items-center justify-center flex-col gap-8"
-      style="display: none"
-    >
-      <div class="text-center">
-        <h2 id="finding-match-text" class="text-4xl font-bold text-white mb-6">
-          Finding a match...
-        </h2>
-        <p id="finding-match-subtext" class="text-xl text-zinc-400 mb-8">
-          Please wait
-        </p>
-      </div>
+            <div class="hero-stats">
+              <div class="hero-stat">
+                <strong>10:00</strong>
+                <span>Rapid control keeps games intense without dragging.</span>
+              </div>
+              <div class="hero-stat">
+                <strong>Real-time</strong>
+                <span>Socket-based matches for quick starts and quick sync.</span>
+              </div>
+              <div class="hero-stat">
+                <strong>Custom boards</strong>
+                <span>Personal colors carry from profile straight into the match.</span>
+              </div>
+            </div>
 
-      <!-- Animated Loading Spinner -->
-      <div class="loading-spinner"></div>
-
-      <div class="text-center text-zinc-500 text-sm">
-        <p id="finding-match-status">Connecting you with an opponent</p>
-      </div>
-    </div>
-
-    <!-- Countdown Screen -->
-    <div
-      id="countdown-screen"
-      class="w-full min-h-screen bg-zinc-900 flex items-center justify-center flex-col gap-8"
-      style="display: none"
-    >
-      <div class="text-center">
-        <h2 class="text-3xl font-bold text-white mb-6">Game Starting In</h2>
-        <div
-          id="countdown-number"
-          class="text-9xl font-bold text-green-500 animate-pulse"
-        >
-          3
-        </div>
-      </div>
-    </div>
-
-    <!-- Game Area (Hidden Initially) -->
-    <div
-      id="game-area"
-       class="w-full min-h-screen bg-zinc-900 flex items-center justify-center xl:p-8 lg:p-2"
-      style="display: none"
-    >
-      <div class="game-container flex xl:gap-8 gap-2 items-start max-w-7xl">
-        <!-- Left Side Panel -->
-       <div class="left-panel flex flex-col xl:gap-6 lg:gap-4 xl:w-80 lg:w-60 md:w-50">
-          <!-- Turn display -->
-          <div
-            class="turn-display font-bold text-white text-center text-2xl bg-zinc-800 px-6 py-4 rounded-lg shadow-lg"
-          >
-            White's turn
+            <div class="mini-board" aria-hidden="true">
+              <% for (let i = 0; i < 16; i++) { %>
+              <span></span>
+              <% } %>
+            </div>
           </div>
 
-          <!-- White Player Info -->
-          <div class="player-info bg-zinc-800 rounded-lg p-4 shadow-lg">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
- <div class="text-white font-bold xl:text-lg lg:text-sm">⚪ White</div>                <div
-                  id="white-check-status"
-                  class="check-badge"
-                  style="display: none"
-                >
-                  CHECK
+          <aside class="sidebar-panel panel-card">
+            <div class="panel-heading">
+              <h3>Game Setup</h3>
+              <p>
+                Pick your preferred side, tune the bot, and start from a cleaner,
+                more intentional home screen.
+              </p>
+            </div>
+
+            <div class="settings-grid">
+              <div class="field-group">
+                <label for="color-preference-select" class="field-label">Start As</label>
+                <select id="color-preference-select" class="field-select">
+                  <option value="random" selected>Random</option>
+                  <option value="white">White</option>
+                  <option value="black">Black</option>
+                </select>
+              </div>
+
+              <div class="field-group">
+                <label for="bot-difficulty-select" class="field-label">Difficulty</label>
+                <select id="bot-difficulty-select" class="field-select">
+                  <option value="easy">Easy</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
+
+              <div class="field-group">
+                <label for="bot-personality-select" class="field-label">Personality</label>
+                <select id="bot-personality-select" class="field-select">
+                  <option value="aggressive">Aggressive</option>
+                  <option value="positional" selected>Positional</option>
+                  <option value="defensive">Defensive</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="feature-list">
+              <div class="feature-row">
+                <div class="feature-icon">1</div>
+                <div>
+                  <strong>Live duels</strong>
+                  <span>Fast matchmaking with countdown and full move history.</span>
                 </div>
               </div>
-              <div class="white-score text-white font-bold xl:text-xl lg:text-md">0</div>
-            </div>
-            <div class="timer-container">
-              <div class="timer-label text-zinc-400 text-xs mb-1">
-                Time Remaining
-              </div>
-               <div
-                id="white-timer"
-                class="timer text-white xl:text-3xl lg:text-md font-mono font-bold bg-zinc-700 px-4 py-3 rounded-lg text-center"
-              >
-                10:00
-              </div>
-            </div>
-            <div class="mt-4">
-              <div class="text-zinc-400 text-xs mb-2">Captured Pieces</div>
-              <div
-                id="white-captured"
-                class="captured-pieces bg-zinc-700 px-3 py-2 rounded-lg min-h-[60px] flex gap-1 flex-wrap items-center justify-center"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Black Player Info -->
-          <div class="player-info bg-zinc-800 rounded-lg p-4 shadow-lg">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <div class="text-white font-bold xl:text-lg lg:text-sm">⚫ Black</div>
-                <div
-                  id="black-check-status"
-                  class="check-badge"
-                  style="display: none"
-                >
-                  CHECK
+              <div class="feature-row">
+                <div class="feature-icon">2</div>
+                <div>
+                  <strong>Readable pressure</strong>
+                  <span>Timers, captures, and history stay visible without crowding the board.</span>
                 </div>
               </div>
-              <div class="black-score text-white font-bold xl:text-xl lg:text-md">0</div>
-            </div>
-            <div class="timer-container">
-              <div class="timer-label text-zinc-400 text-xs mb-1">
-                Time Remaining
-              </div>
-              <div
-                id="black-timer"
-                class="timer text-white xl:text-3xl lg:text-md font-mono font-bold bg-zinc-700 px-4 py-3 rounded-lg text-center"
-              >
-                10:00
+              <div class="feature-row">
+                <div class="feature-icon">3</div>
+                <div>
+                  <strong>Profile-driven feel</strong>
+                  <span>Your display name and board palette carry through the app.</span>
+                </div>
               </div>
             </div>
-            <div class="mt-4">
-              <div class="text-zinc-400 text-xs mb-2">Captured Pieces</div>
-              <div
-                id="black-captured"
-                class="captured-pieces bg-zinc-700 px-3 py-2 rounded-lg min-h-[60px] flex gap-1 flex-wrap items-center justify-center"
-              ></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="finding-match-screen" class="state-wrap" style="display: none">
+        <div class="state-panel panel-card">
+          <span class="eyebrow">Matchmaking</span>
+          <h2 id="finding-match-text">Finding a match...</h2>
+          <p id="finding-match-subtext">Please wait</p>
+          <div class="loading-spinner"></div>
+          <p id="finding-match-status">Connecting you with an opponent</p>
+        </div>
+      </section>
+
+      <section id="countdown-screen" class="state-wrap" style="display: none">
+        <div class="state-panel panel-card">
+          <span class="eyebrow">Ready</span>
+          <h2>Game starting in</h2>
+          <div id="countdown-number">3</div>
+        </div>
+      </section>
+
+      <section id="game-area" class="game-wrap game-shell" style="display: none">
+        <div class="game-layout">
+          <div class="game-column">
+            <div class="turn-display">White's turn</div>
+
+            <div class="player-card panel-card">
+              <div class="player-card-header">
+                <div class="player-label">
+                  <span>⚪ White</span>
+                  <div id="white-check-status" class="check-badge" style="display: none">
+                    CHECK
+                  </div>
+                </div>
+                <div class="white-score player-score">0</div>
+              </div>
+
+              <div class="timer-container">
+                <div class="timer-label">Time Remaining</div>
+                <div id="white-timer" class="timer">10:00</div>
+              </div>
+
+              <div class="captured-wrap">
+                <div class="captured-title">Captured Pieces</div>
+                <div id="white-captured" class="captured-pieces"></div>
+              </div>
+            </div>
+
+            <div class="player-card panel-card">
+              <div class="player-card-header">
+                <div class="player-label">
+                  <span>⚫ Black</span>
+                  <div id="black-check-status" class="check-badge" style="display: none">
+                    CHECK
+                  </div>
+                </div>
+                <div class="black-score player-score">0</div>
+              </div>
+
+              <div class="timer-container">
+                <div class="timer-label">Time Remaining</div>
+                <div id="black-timer" class="timer">10:00</div>
+              </div>
+
+              <div class="captured-wrap">
+                <div class="captured-title">Captured Pieces</div>
+                <div id="black-captured" class="captured-pieces"></div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Center - Chessboard -->
-        <div class="board-container flex flex-col items-center gap-4">
-          <div class="chessboard w-[600px] h-[600px] shadow-2xl"></div>
+          <div class="game-column">
+            <div class="board-panel panel-card">
+              <div class="board-header">
+                <div>
+                  <h3>Match Board</h3>
+                  <p>Track pressure, watch the clock, and stay on the current line.</p>
+                </div>
+                <div class="board-meta">
+                  <div class="board-status">Hints enabled</div>
+                  <div class="board-status">10 minute control</div>
+                </div>
+              </div>
 
-          <!-- Game Controls -->
-          <div class="flex gap-4 items-center">
-            <button
-              id="draw-offer-button"
-              class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-lg shadow-lg transform transition hover:scale-105 active:scale-95"
-              style="display: none"
-            >
-              🤝 Offer Draw
-            </button>
-            <button
-              id="resign-button"
-              class="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-lg shadow-lg transform transition hover:scale-105 active:scale-95"
-              style="display: none"
-            >
-              🏳️ Resign
-            </button>
+              <div class="board-frame">
+                <div class="board-rank-file">
+                  <div class="rank-labels" aria-hidden="true">
+                    <span>8</span>
+                    <span>7</span>
+                    <span>6</span>
+                    <span>5</span>
+                    <span>4</span>
+                    <span>3</span>
+                    <span>2</span>
+                    <span>1</span>
+                  </div>
+                  <div>
+                    <div class="chessboard"></div>
+                    <div class="file-labels" aria-hidden="true">
+                      <span>a</span>
+                      <span>b</span>
+                      <span>c</span>
+                      <span>d</span>
+                      <span>e</span>
+                      <span>f</span>
+                      <span>g</span>
+                      <span>h</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="game-controls-card panel-card">
+              <div class="controls-row">
+                <button
+                  id="draw-offer-button"
+                  class="btn btn-info control-button"
+                  style="display: none"
+                >
+                  Offer Draw
+                </button>
+                <button
+                  id="resign-button"
+                  class="btn btn-danger control-button"
+                  style="display: none"
+                >
+                  Resign
+                </button>
+              </div>
+
+              <div class="message"></div>
+            </div>
           </div>
 
-          <!-- Message display -->
-          <div
-            class="message font-bold text-red-500 text-center text-2xl min-h-[40px]"
-          ></div>
+          <aside class="move-history-container panel-card" style="display: none">
+            <div class="move-history-heading">
+              <h3>Move History</h3>
+              <p>Every move, in order, with the current sequence highlighted.</p>
+            </div>
+            <div id="move-history" class="move-history"></div>
+          </aside>
         </div>
+      </section>
 
-        <!-- Right Side - Move History -->
-        <div
-          class="move-history-container bg-zinc-800 rounded-lg p-4 shadow-lg xl:w-80 lg:w-56"
-          style="display: none"
-        >
-          <h3 class="text-white font-bold text-lg mb-3 text-center">
-            Move History
-          </h3>
-          <div
-            id="move-history"
-            class="move-history overflow-y-auto max-h-[600px] text-sm"
-          ></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- External Scripts -->
-    <script
-      src="https://cdn.socket.io/4.7.5/socket.io.min.js"
-      integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
-      crossorigin="anonymous"
-    ></script>
-    <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"
-      integrity="sha512-xRllwz2gdZciIB+AkEbeq+gVhX8VB8XsfqeFbUh+SzHlN96dEduwtTuVuc2u9EROlmW9+yhRlxjif66ORpsgVA=="
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    ></script>
-    <script src="/javascripts/script.js"></script>
+      <script
+        src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+        integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
+        crossorigin="anonymous"
+      ></script>
+      <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"
+        integrity="sha512-xRllwz2gdZciIB+AkEbeq+gVhX8VB8XsfqeFbUh+SzHlN96dEduwtTuVuc2u9EROlmW9+yhRlxjif66ORpsgVA=="
+        crossorigin="anonymous"
+        referrerpolicy="no-referrer"
+      ></script>
+      <script src="/javascripts/script.js"></script>
     </div>
   </body>
 </html>

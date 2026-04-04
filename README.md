@@ -1,307 +1,241 @@
-# Chess.com - Real-Time Multiplayer Chess
+# Chess.com Clone Backend
 
-A fully-featured real-time multiplayer chess application with matchmaking, rating system, and guest play support. Built with Node.js, Express, Socket.io, and Chess.js.
+A real-time chess application built with Node.js, Express, Socket.IO, EJS, MongoDB, and Chess.js.  
+It supports online matchmaking, bot games, guest sessions, profile customization, ratings, timers, and live game updates.
 
 ## Features
 
-### 🎮 Core Gameplay
-
-- **Real-time multiplayer chess** with WebSocket connections
-- **Legal move validation** using Chess.js library
-- **Automatic game state detection** (checkmate, stalemate, draws)
-- **Move history tracking** with full game replay
-- **Captured pieces display** with material advantage scoring
-- **Game sounds** for moves, captures, and special events
-- **Visual move highlights** including check, en passant, castling
-
-### 🎯 Matchmaking System
-
-- **Rating-based matchmaking** (±200 rating points)
-- **Automatic queue management** with instant pairing
-- **Fair color assignment** with random selection
-- **3-second countdown** before game start
-
-### ⏱️ Timer System
-
-- **10-minute clock** per player
-- **Real-time countdown** synchronized across clients
-- **Low-time warning** at 10 seconds remaining
-- **Automatic timeout detection** with opponent victory
-
-### 🏆 Rating System
-
-- **ELO rating algorithm** with K-factor of 32
-- **Automatic rating updates** on game completion
-- **Statistics tracking**: wins, losses, draws, win streaks
-- **Rating changes** on checkmate, resignation, timeout, and abandonment
-
-### 👤 User Features
-
-- **User authentication** with JWT tokens
-- **Guest play mode** - play without registration
-- **Secure password hashing** with bcrypt
-- **Session management** with MongoDB store
-- **User profiles** with game statistics
-
-### 🎲 Game End Scenarios
-
-- Checkmate detection with winner announcement
-- Resignation with proper forfeit handling
-- Draw offers (accepted/declined)
-- Stalemate and draw by agreement
-- Disconnect handling with 30-second reconnection window
-- Automatic timeout on time expiry
+- Real-time multiplayer chess over Socket.IO
+- Bot matches with selectable difficulty and personality
+- Preferred starting color for online and bot games: `White`, `Black`, or `Random`
+- Rating-based matchmaking with a +/- 200 rating search window
+- 10-minute game clock with low-time warnings
+- Move validation and game-state detection powered by Chess.js
+- Captured-piece tracking and material score display
+- Move history, check indicators, promotion flow, and special-move highlighting
+- Registered users with persistent ratings and stats
+- Guest sessions for quick play without registration
+- Profile page for display name and board-color customization
+- Handling for resignation, draw offers, timeout, and disconnects
 
 ## Tech Stack
 
-### Backend
+- Node.js
+- Express
+- Socket.IO
+- MongoDB + Mongoose
+- EJS
+- Vanilla JavaScript
+- Chess.js
+- bcrypt
+- JWT stored in cookies
 
-- **Node.js** with Express.js
-- **Socket.io** for real-time bidirectional communication
-- **MongoDB** with Mongoose for data persistence
-- **JWT** for authentication
-- **Chess.js** for game logic and validation
+## Project Structure
 
-### Frontend
-
-- **EJS** templating engine
-- **Vanilla JavaScript** for game interface
-- **Socket.io Client** for real-time updates
-- **CSS3** for styling and animations
+```text
+Chess.com/
+|-- app.js
+|-- server.js
+|-- config/
+|   `-- database.js
+|-- controllers/
+|   |-- authController.js
+|   `-- profileController.js
+|-- game/
+|   |-- botManager.js
+|   |-- constants.js
+|   |-- gameManager.js
+|   |-- ratingManager.js
+|   `-- timerManager.js
+|-- middleware/
+|   `-- auth.js
+|-- models/
+|   `-- User.js
+|-- public/
+|   |-- images/
+|   |-- javascripts/
+|   |   `-- script.js
+|   |-- sounds/
+|   `-- stylesheets/
+|       `-- style.css
+|-- routes/
+|   |-- auth.js
+|   `-- viewRoutes.js
+|-- socket/
+|   |-- auth.socket.js
+|   |-- game.socket.js
+|   |-- index.js
+|   `-- matchmaking.socket.js
+|-- stats/
+|   `-- gameStats.js
+`-- views/
+    |-- index.ejs
+    |-- login.ejs
+    |-- profile.ejs
+    `-- register.ejs
+```
 
 ## Installation
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
-- MongoDB (optional for guest-only mode)
+- Node.js 18+ recommended
+- MongoDB running locally or remotely
 
 ### Setup
 
-1. **Clone the repository**
+1. Clone the repository
 
 ```bash
 git clone <repository-url>
 cd Chess.com
 ```
 
-2. **Install dependencies**
+2. Install dependencies
 
 ```bash
 npm install
 ```
 
-3. **Configure environment variables**
-
-Create a `.env` file in the root directory:
+3. Create a `.env` file in the project root
 
 ```env
 PORT=3000
-MONGO_URI=mongodb://localhost:27017/chess
-JWT_SECRET=your_jwt_secret_key_here
-SESSION_SECRET=your_session_secret_key_here
+MONGO_URI=mongodb://127.0.0.1:27017/chess
+JWT_SECRET=your_jwt_secret
+JWT_EXPIRE=7d
+JWT_COOKIE_EXPIRE=7
+SESSION_SECRET=your_session_secret
+NODE_ENV=development
 ```
 
-4. **Start MongoDB** (optional for guest play)
-
-```bash
-mongod
-```
-
-5. **Run the application**
+4. Start the app
 
 ```bash
 npm start
 ```
 
-Or for development with auto-restart:
+5. Open the app
 
-```bash
-nodemon server.js
-```
-
-6. **Access the application**
-
-Open your browser and navigate to:
-
-```
+```text
 http://localhost:3000
 ```
 
-## Project Structure
+## Scripts
 
-```
-Chess.com/
-├── config/
-│   └── database.js           # MongoDB connection configuration
-├── controllers/
-│   └── authController.js     # Authentication logic (login, register, guest)
-├── game/
-│   ├── constants.js          # Game constants (piece values)
-│   ├── gameManager.js        # Game state management
-│   ├── ratingManager.js      # ELO rating calculations
-│   └── timerManager.js       # Game timer logic
-├── middleware/
-│   └── auth.js               # JWT authentication middleware
-├── models/
-│   └── User.js               # User schema and methods
-├── public/
-│   ├── images/               # Chess piece images and UI assets
-│   ├── javascripts/
-│   │   └── script.js         # Client-side game logic
-│   ├── sounds/               # Game sound effects
-│   └── stylesheets/
-│       └── style.css         # Application styles
-├── routes/
-│   ├── auth.js               # Authentication routes
-│   └── viewRoutes.js         # Page rendering routes
-├── socket/
-│   ├── index.js              # Socket.io initialization
-│   ├── auth.socket.js        # Socket authentication
-│   ├── game.socket.js        # Game event handlers
-│   └── matchmaking.socket.js # Matchmaking logic
-├── stats/
-│   └── gameStats.js          # Global game statistics
-├── views/
-│   ├── index.ejs             # Game board page
-│   ├── login.ejs             # Login/register page
-│   └── register.ejs          # Registration page
-├── app.js                    # Express app configuration
-├── server.js                 # Server entry point
-└── package.json              # Dependencies and scripts
-```
+- `npm start` - starts the server with `node server.js`
 
-## How to Play
+There is currently no dedicated dev script in `package.json`.
 
-### As Registered User
+## Authentication Flow
 
-1. Navigate to the login page
-2. Register a new account or log in
-3. Click "Play Game" to join the matchmaking queue
-4. Wait for an opponent (or open another window as a second player)
-5. Play chess in real-time!
+- `GET /auth/login` renders the login page
+- `GET /auth/register` renders the register page
+- `POST /auth/register` creates a user
+- `POST /auth/login` logs in a user
+- `POST /auth/guest` creates a guest session
+- `GET /auth/logout` clears the auth cookie
+- `GET /auth/me` returns the authenticated user
 
-### As Guest
+Authentication is cookie-based using JWT.
 
-1. Navigate to the login page
-2. Click "Play as Guest"
-3. Click "Play Game" to start matchmaking
-4. Your guest session lasts 24 hours
-5. **Note**: Guest games don't affect ratings
+## Main Routes
 
-### Game Controls
+- `GET /` - main game page, protected
+- `GET /profile` - profile settings page, protected
+- `POST /profile` - update profile settings, protected
+- `GET /stats` - returns global game stats as JSON
 
-- **Click** a piece to select it
-- **Click** a valid square to move
-- **Resign button** - forfeit the game
-- **Draw offer** - propose a draw to opponent
+## Gameplay Notes
 
-## Game Rules
+### Online matchmaking
 
-- Standard chess rules apply
-- 10 minutes per player
-- Rating changes based on ELO system:
-  - Win: Gain rating points
-  - Loss: Lose rating points
-  - Draw: Small adjustment based on rating difference
-- Disconnecting gives opponent 30 seconds to reconnect
-- After 30 seconds, disconnected player forfeits
+- Players enter a queue through Socket.IO
+- Matchmaking uses rating proximity and color preference compatibility
+- Colors are assigned from player preference when possible
+- If both players choose `Random`, colors are randomized
 
-## API Endpoints
+### Bot games
 
-### Authentication
+- Difficulty and personality are chosen before the game starts
+- Player can choose to start as White, Black, or Random
+- If the bot starts as White, it now makes the opening move automatically
 
-- `GET /login` - Login/register page
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - User login
-- `POST /api/auth/guest-login` - Guest login
-- `GET /api/auth/logout` - Logout
+### Ratings and stats
 
-### Views
+- Registered users start at `1200`
+- Ratings are updated with an ELO-style calculation
+- Guest users can play, but their stats are not persisted
 
-- `GET /` - Game board (protected)
-- `GET /game` - Game page (protected)
+## Profile Customization
+
+Registered users can update:
+
+- Username
+- Display name
+- Light square color
+- Dark square color
+- Move-hint color
+
+Guest users can open the profile page, but they cannot save changes.
 
 ## Socket Events
 
-### Client → Server
+### Client -> Server
 
-- `move` - Make a chess move
-- `resign` - Resign from game
-- `offerDraw` - Offer draw to opponent
-- `acceptDraw` - Accept draw offer
-- `declineDraw` - Decline draw offer
+- `findMatch`
+- `playBot`
+- `move`
+- `resign`
+- `offerDraw`
+- `acceptDraw`
+- `declineDraw`
 
-### Server → Client
+### Server -> Client
 
-- `gameStart` - Game begins with initial data
-- `move` - Opponent's move received
-- `gameOver` - Game ended with result
-- `gameResigned` - Player resigned
-- `drawOffered` - Draw offer received
-- `ratingUpdate` - Updated rating after game
-- `lowTime` - Warning at 10 seconds
-- `opponentDisconnected` - Opponent left
+- `playerRole`
+- `waitingForMatch`
+- `waitingForBotMatch`
+- `waitingForOpponent`
+- `startCountdown`
+- `countdownTick`
+- `gameStart`
+- `boardstate`
+- `turnChange`
+- `move`
+- `moveHistory`
+- `scoreUpdate`
+- `capturedPiecesUpdate`
+- `timerUpdate`
+- `lowTime`
+- `gameOver`
+- `gameResigned`
+- `drawOffered`
+- `drawAccepted`
+- `drawDeclined`
+- `opponentDisconnected`
+- `opponentReconnected`
+- `ratingUpdate`
+- `gameMessage`
 
 ## Environment Variables
 
-| Variable         | Description               | Default |
-| ---------------- | ------------------------- | ------- |
-| `PORT`           | Server port               | 3000    |
-| `MONGO_URI`      | MongoDB connection string | -       |
-| `JWT_SECRET`     | JWT signing secret        | -       |
-| `SESSION_SECRET` | Session secret key        | -       |
+| Variable | Description |
+| --- | --- |
+| `PORT` | Port used by the HTTP server |
+| `MONGO_URI` | MongoDB connection string |
+| `JWT_SECRET` | Secret used to sign JWTs |
+| `JWT_EXPIRE` | JWT lifetime |
+| `JWT_COOKIE_EXPIRE` | Auth cookie lifetime in days |
+| `SESSION_SECRET` | Session secret |
+| `NODE_ENV` | Environment mode |
 
-## Features in Detail
+## Current Limitations
 
-### ELO Rating System
-
-```javascript
-Expected Score = 1 / (1 + 10^((opponent_rating - player_rating) / 400))
-New Rating = Old Rating + 32 * (Actual Score - Expected Score)
-```
-
-- K-factor: 32
-- Win: Actual Score = 1
-- Draw: Actual Score = 0.5
-- Loss: Actual Score = 0
-
-### Guest System
-
-- No registration required
-- Generates unique guest ID
-- 24-hour JWT token
-- Games don't affect rating
-- No database storage needed
-
-### Sound System
-
-- Move sounds with 250ms debouncing
-- Capture sound effects
-- Check warnings
-- Game end notifications
-- Low-time alerts
-
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a pull request
+- The UI is intentionally desktop-first; small screens show a larger-screen prompt
+- `package.json` only includes a production start script
+- No automated test suite is configured yet
 
 ## License
 
 ISC
-
-## Acknowledgments
-
-- Chess.js library for game logic
-- Socket.io for real-time communication
-- MongoDB for data persistence
-
----
-
-**Enjoy playing chess! ♟️**

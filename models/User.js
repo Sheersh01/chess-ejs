@@ -28,6 +28,29 @@ const userSchema = new mongoose.Schema(
       minlength: [6, "Password must be at least 6 characters"],
       select: false,
     },
+    displayName: {
+      type: String,
+      trim: true,
+      maxlength: [30, "Display name cannot exceed 30 characters"],
+      default: "",
+    },
+    settings: {
+      boardLight: {
+        type: String,
+        default: "#f0d9b5",
+        match: [/^#[0-9A-Fa-f]{6}$/, "Board light color must be a hex code"],
+      },
+      boardDark: {
+        type: String,
+        default: "#b58863",
+        match: [/^#[0-9A-Fa-f]{6}$/, "Board dark color must be a hex code"],
+      },
+      hintColor: {
+        type: String,
+        default: "#14551e",
+        match: [/^#[0-9A-Fa-f]{6}$/, "Hint color must be a hex code"],
+      },
+    },
     rating: {
       type: Number,
       default: 1200,

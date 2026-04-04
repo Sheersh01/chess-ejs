@@ -10,9 +10,13 @@ module.exports = async function updateRatings(game, result, io) {
     typeof whitePlayer === "string" && whitePlayer.startsWith("guest_");
   const isBlackGuest =
     typeof blackPlayer === "string" && blackPlayer.startsWith("guest_");
+  const isWhiteBot =
+    typeof whitePlayer === "string" && whitePlayer.startsWith("bot_");
+  const isBlackBot =
+    typeof blackPlayer === "string" && blackPlayer.startsWith("bot_");
 
-  if (isWhiteGuest || isBlackGuest) {
-    console.log("Skipping rating update for guest players");
+  if (isWhiteGuest || isBlackGuest || isWhiteBot || isBlackBot) {
+    console.log("Skipping rating update for guest/bot players");
     return;
   }
 
