@@ -70,39 +70,52 @@ const emitOpeningBotMoveIfNeeded = (game, io) => {
 
   const delay = game.bot.thinkTimeMs || 500;
 
-  setTimeout(() => {
-    const activeGame = gameManager.games.get(game.id);
-    if (!activeGame || activeGame.chess.turn() !== "w" || activeGame.chess.isGameOver()) {
-      return;
+  const timeoutId = setTimeout(() => {
+    try {
+      const activeGame = gameManager.games.get(game.id);
+      if (
+        !activeGame ||
+        activeGame.chess.turn() !== "w" ||
+        activeGame.chess.isGameOver()
+      ) {
+        return;
+      }
+
+      const botMoveInput = botManager.getBotMove(activeGame.chess, {
+        difficulty: activeGame.bot?.difficulty,
+        personality: activeGame.bot?.personality,
+        botColor: activeGame.bot?.color,
+      });
+
+      if (!botMoveInput) {
+        return;
+      }
+
+      const botMove = activeGame.chess.move({
+        from: botMoveInput.from,
+        to: botMoveInput.to,
+        promotion: botMoveInput.promotion,
+      });
+
+      if (!botMove) {
+        return;
+      }
+
+      activeGame.moveHistory.push(botMove);
+
+      io.to(activeGame.id).emit("move", botMove);
+      io.to(activeGame.id).emit("boardstate", activeGame.chess.fen());
+      io.to(activeGame.id).emit("moveHistory", activeGame.moveHistory);
+      io.to(activeGame.id).emit("turnChange", activeGame.chess.turn());
+      timerManager.syncToCurrentTurn(activeGame, io);
+    } finally {
+      if (game.bot?.pendingMoveTimeout === timeoutId) {
+        game.bot.pendingMoveTimeout = null;
+      }
     }
-
-    const botMoveInput = botManager.getBotMove(activeGame.chess, {
-      difficulty: activeGame.bot?.difficulty,
-      personality: activeGame.bot?.personality,
-      botColor: activeGame.bot?.color,
-    });
-
-    if (!botMoveInput) {
-      return;
-    }
-
-    const botMove = activeGame.chess.move({
-      from: botMoveInput.from,
-      to: botMoveInput.to,
-      promotion: botMoveInput.promotion,
-    });
-
-    if (!botMove) {
-      return;
-    }
-
-    activeGame.moveHistory.push(botMove);
-
-    io.to(activeGame.id).emit("move", botMove);
-    io.to(activeGame.id).emit("boardstate", activeGame.chess.fen());
-    io.to(activeGame.id).emit("moveHistory", activeGame.moveHistory);
-    io.to(activeGame.id).emit("turnChange", activeGame.chess.turn());
   }, delay);
+
+  game.bot.pendingMoveTimeout = timeoutId;
 };
 
 // Helper function to find match with rating-based matchmaking

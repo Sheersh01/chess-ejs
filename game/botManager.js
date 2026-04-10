@@ -64,7 +64,15 @@ const getDifficultyConfig = (difficulty) => {
 
 const fenWithTurn = (fen, turn) => {
   const fields = fen.split(" ");
+  const originalTurn = fields[1];
   fields[1] = turn;
+
+  // Switching sides can invalidate the en-passant target square from the
+  // original position, so clear it for read-only evaluation clones.
+  if (originalTurn !== turn) {
+    fields[3] = "-";
+  }
+
   return fields.join(" ");
 };
 

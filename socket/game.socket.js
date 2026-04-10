@@ -35,6 +35,7 @@ const emitBoardState = (game, io) => {
   io.to(game.id).emit("boardstate", game.chess.fen());
   io.to(game.id).emit("moveHistory", game.moveHistory);
   io.to(game.id).emit("turnChange", game.chess.turn());
+  timerManager.syncToCurrentTurn(game, io);
 };
 
 const resolveGameResult = (game) => {
@@ -128,7 +129,7 @@ const maybeScheduleBotMove = (game, io) => {
     game.bot.pendingMoveTimeout = null;
   }
 
-  game.bot.pendingMoveTimeout = setTimeout(async () => {
+  const timeoutId = setTimeout(async () => {
     try {
       const stillActiveGame = gameManager.games.get(game.id);
       if (!stillActiveGame || stillActiveGame.chess.isGameOver()) {
@@ -171,11 +172,13 @@ const maybeScheduleBotMove = (game, io) => {
     } catch (error) {
       console.error("Bot move error:", error);
     } finally {
-      if (game.bot) {
+      if (game.bot?.pendingMoveTimeout === timeoutId) {
         game.bot.pendingMoveTimeout = null;
       }
     }
   }, game.bot.thinkTimeMs || 500);
+
+  game.bot.pendingMoveTimeout = timeoutId;
 };
 
 module.exports = (io) => {

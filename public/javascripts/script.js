@@ -36,6 +36,10 @@ let playerRole = null;
 let selectedSquare = null;
 let gameStarted = false;
 let pendingPromotion = null; // Store pending promotion move
+let currentTurn = "w";
+let currentTimers = { white: 600, black: 600 };
+let timerSyncAt = Date.now();
+let timerRenderInterval = null;
 
 // Notification system
 const showNotification = (message, type = "info", duration = 3000) => {
@@ -110,6 +114,45 @@ const playSound = (type) => {
   } catch (error) {
     console.log("Sound error:", error);
   }
+};
+
+const getDisplayedTimers = () => {
+  const displayedTimers = { ...currentTimers };
+  const activeColor = currentTurn === "w" ? "white" : "black";
+  const elapsedSeconds = Math.floor((Date.now() - timerSyncAt) / 1000);
+
+  if (elapsedSeconds > 0) {
+    displayedTimers[activeColor] = Math.max(
+      0,
+      displayedTimers[activeColor] - elapsedSeconds,
+    );
+  }
+
+  return displayedTimers;
+};
+
+const renderTimers = () => {
+  const displayedTimers = getDisplayedTimers();
+  updateTimerDisplay("white", displayedTimers.white);
+  updateTimerDisplay("black", displayedTimers.black);
+};
+
+const startTimerRendering = () => {
+  if (timerRenderInterval) {
+    clearInterval(timerRenderInterval);
+  }
+
+  renderTimers();
+  timerRenderInterval = setInterval(renderTimers, 250);
+};
+
+const stopTimerRendering = () => {
+  if (!timerRenderInterval) {
+    return;
+  }
+
+  clearInterval(timerRenderInterval);
+  timerRenderInterval = null;
 };
 
 // Update move history display
@@ -956,6 +999,7 @@ const initializeSocketListeners = () => {
 
     renderBoard();
     updateMoveHistory();
+    startTimerRendering();
   });
 
   socket.on("boardstate", (fen) => {
@@ -1045,11 +1089,13 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("turnChange", (turn) => {
+    currentTurn = turn;
     messageElement.innerText = "";
     messageElement.style.display = "none";
 
     turnDisplayElement.innerText =
       turn === "w" ? "White's turn" : "Black's turn";
+    renderTimers();
   });
 
   socket.on("scoreUpdate", (scores) => {
@@ -1061,11 +1107,14 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("timerUpdate", (timers) => {
-    updateTimerDisplay("white", timers.white);
-    updateTimerDisplay("black", timers.black);
+    currentTimers = timers;
+    timerSyncAt = Date.now();
+    renderTimers();
   });
 
   socket.on("timeOut", (data) => {
+    stopTimerRendering();
+
     // Play game end sound
     playSound("gameEnd");
 
@@ -1089,6 +1138,8 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("gameOver", (data) => {
+    stopTimerRendering();
+
     // Play game end sound
     playSound("gameEnd");
 
@@ -1191,6 +1242,8 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("drawAccepted", (data) => {
+    stopTimerRendering();
+
     // Show game over message
     messageElement.innerText = data.message;
     messageElement.style.display = "block";
@@ -1308,7 +1361,6 @@ const updateTimerDisplay = (color, seconds) => {
 
   timerElement.classList.remove("active", "warning");
 
-  const currentTurn = chess.turn();
   if (
     (color === "white" && currentTurn === "w") ||
     (color === "black" && currentTurn === "b")

@@ -31,6 +31,14 @@ const createGame = (white, black, whiteUserId, blackUserId, options = {}) => {
           }
         : null,
     timers: { white: 600, black: 600 },
+    timerState: {
+      remainingMs: { white: 600000, black: 600000 },
+      activeColor: null,
+      lastUpdatedAt: null,
+      lastBroadcastSeconds: { white: 600, black: 600 },
+      lowTimeNotified: { white: false, black: false },
+      running: false,
+    },
     scores: { w: 0, b: 0 },
     capturedPieces: { white: [], black: [] },
     moveHistory: [],
