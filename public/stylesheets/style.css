@@ -1237,6 +1237,16 @@ display: grid;
 
 #small-device-screen {
   display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  padding: 24px;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at top left, rgba(79, 209, 166, 0.18), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(75, 169, 255, 0.16), transparent 30%),
+    linear-gradient(160deg, rgba(4, 10, 19, 0.96), rgba(7, 17, 31, 0.98));
 }
 
 .small-device-content {
@@ -1263,6 +1273,20 @@ display: grid;
 
 .small-device-content p + p {
   margin-top: 8px;
+}
+
+@media (max-width: 1250px) {
+  #desktop-app {
+    display: none !important;
+  }
+
+  #small-device-screen {
+    display: flex !important;
+  }
+
+  .page-grid {
+    display: none;
+  }
 }
 
 @keyframes check-pulse {
