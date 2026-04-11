@@ -31,7 +31,6 @@
             </div>
             <div style="display: flex; gap: 12px; flex-wrap: wrap">
               <a href="/" class="btn btn-ghost">Home</a>
-              <a href="/" class="btn btn-ghost">Back to Game</a>
             </div>
           </div>
 
@@ -43,7 +42,7 @@
           <div class="flash flash-success" style="margin-bottom: 18px"><%= success %></div>
           <% } %>
 
-          <form action="/profile" method="POST" class="profile-panel panel-card">
+          <form id="profile-settings-form" action="/profile" method="POST" class="profile-panel panel-card">
             <div class="profile-grid">
               <div class="profile-section">
                 <section class="profile-section">
@@ -57,14 +56,12 @@
                       <label for="username" class="field-label">Username</label>
                       <input
                         id="username"
-                        name="username"
                         type="text"
-                        required
-                        minlength="3"
-                        maxlength="20"
                         value="<%= user.username %>"
                         class="field-input"
+                        readonly
                       />
+                      <div class="field-help">Username is fixed and cannot be changed.</div>
                     </div>
 
                     <div class="field-group">
@@ -78,6 +75,7 @@
                         placeholder="How your name appears in UI"
                         class="field-input"
                       />
+                      <div class="field-help">This name appears in game UI and match history.</div>
                     </div>
                   </div>
                 </section>
@@ -149,7 +147,9 @@
                 </section>
 
                 <div class="profile-actions">
-                  <button type="submit" class="btn btn-primary">Save Settings</button>
+                  <button id="save-settings-button" type="submit" class="btn btn-primary" disabled>
+                    Save Settings
+                  </button>
                   <a href="/" class="btn btn-ghost">Cancel</a>
                 </div>
               </div>
@@ -187,6 +187,91 @@
               </aside>
             </div>
           </form>
+
+          <section class="profile-panel panel-card" style="margin-top: 20px">
+            <section class="profile-section">
+              <div class="section-heading">
+                <h2>Danger Zone</h2>
+                <p>Delete your account permanently. This action cannot be undone.</p>
+              </div>
+
+              <% if (!user.isGuest) { %>
+              <form id="delete-account-form" action="/profile/delete" method="POST" class="field-group">
+                <label for="confirmDelete" class="field-label">Type DELETE to confirm</label>
+                <input
+                  id="confirmDelete"
+                  name="confirmDelete"
+                  type="text"
+                  class="field-input"
+                  placeholder="DELETE"
+                  autocomplete="off"
+                  required
+                />
+                <button type="submit" class="btn btn-danger" style="width: fit-content">
+                  Delete My Account
+                </button>
+              </form>
+              <% } else { %>
+              <div class="flash flash-error">Guest sessions do not have a stored account to delete.</div>
+              <% } %>
+            </section>
+          </section>
+
+          <section class="history-panel panel-card">
+            <div class="section-heading">
+              <h2>Recent Games</h2>
+              <p>Your latest saved matches, including result, color, opponent, and rating swing.</p>
+            </div>
+
+            <% if (user.isGuest) { %>
+            <div class="flash flash-error">Game history is only saved for registered users.</div>
+            <% } else if (!user.gameHistory || user.gameHistory.length === 0) { %>
+            <div class="history-empty">
+              <strong>No saved games yet.</strong>
+              <span>Finish a match and it will appear here.</span>
+            </div>
+            <% } else { %>
+            <div class="history-list">
+              <% user.gameHistory.forEach((game) => { %>
+              <article class="history-row">
+                <div class="history-main">
+                  <div class="history-topline">
+                    <span class="history-result history-result-<%= game.result %>">
+                      <%= game.result.toUpperCase() %>
+                    </span>
+                    <span class="history-mode">
+                      <%= game.mode === 'bot' ? 'Bot Game' : 'Online Match' %>
+                    </span>
+                    <span class="history-color"><%= game.color === 'white' ? 'White' : 'Black' %></span>
+                  </div>
+
+                  <h3>vs <%= game.opponent %></h3>
+                  <p><%= game.reason || 'Completed game' %></p>
+                </div>
+
+                <div class="history-meta">
+                  <div class="history-stat">
+                    <strong>Moves</strong>
+                    <span><%= game.moves %></span>
+                  </div>
+                  <div class="history-stat">
+                    <strong>Rating</strong>
+                    <span>
+                      <%= typeof game.ratingBefore === 'number' ? game.ratingBefore : '-' %>
+                      →
+                      <%= typeof game.ratingAfter === 'number' ? game.ratingAfter : '-' %>
+                    </span>
+                  </div>
+                  <div class="history-stat">
+                    <strong>Played</strong>
+                    <span><%= new Date(game.playedAt).toLocaleString() %></span>
+                  </div>
+                </div>
+              </article>
+              <% }) %>
+            </div>
+            <% } %>
+          </section>
         </div>
       </div>
     </main>
@@ -227,6 +312,44 @@
       syncColor("boardLight", "boardLightText");
       syncColor("boardDark", "boardDarkText");
       syncColor("hintColor", "hintColorText");
+
+      const profileSettingsForm = document.getElementById("profile-settings-form");
+      const saveSettingsButton = document.getElementById("save-settings-button");
+
+      if (profileSettingsForm && saveSettingsButton) {
+        const trackedFields = ["displayName", "boardLight", "boardDark", "hintColor"]
+          .map((name) => profileSettingsForm.elements.namedItem(name))
+          .filter(Boolean);
+
+        const snapshot = new Map(
+          trackedFields.map((field) => [field.name, field.value]),
+        );
+
+        const updateSaveButtonState = () => {
+          const hasChanges = trackedFields.some(
+            (field) => field.value !== snapshot.get(field.name),
+          );
+          saveSettingsButton.disabled = !hasChanges;
+        };
+
+        trackedFields.forEach((field) => {
+          field.addEventListener("input", updateSaveButtonState);
+          field.addEventListener("change", updateSaveButtonState);
+        });
+
+        updateSaveButtonState();
+      }
+
+      const deleteAccountForm = document.getElementById("delete-account-form");
+      deleteAccountForm?.addEventListener("submit", (event) => {
+        const confirmed = confirm(
+          "Are you sure you want to permanently delete your account? This cannot be undone.",
+        );
+
+        if (!confirmed) {
+          event.preventDefault();
+        }
+      });
     </script>
   </body>
 </html>

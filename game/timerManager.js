@@ -1,10 +1,14 @@
 const { stats } = require("../stats/gameStats");
+const ratingManager = require("./ratingManager");
+const historyManager = require("./historyManager");
 
 const TICK_MS = 200;
 
-const getActiveColor = (game) => (game.chess.turn() === "w" ? "white" : "black");
+const getActiveColor = (game) =>
+  game.chess.turn() === "w" ? "white" : "black";
 
-const getDisplaySeconds = (remainingMs) => Math.max(0, Math.ceil(remainingMs / 1000));
+const getDisplaySeconds = (remainingMs) =>
+  Math.max(0, Math.ceil(remainingMs / 1000));
 
 const ensureTimerState = (game) => {
   if (!game.timerState) {
@@ -62,15 +66,28 @@ const emitLowTimeIfNeeded = (game, io, color) => {
   }
 };
 
-const handleTimeout = (game, io, color) => {
+const handleTimeout = async (game, io, color) => {
+  game.isFinished = true;
+
   stopTimer(game);
   stats.timeouts++;
   stats.completedGames++;
 
   const winner = color === "white" ? "black" : "white";
+  const reason = `${color === "white" ? "White" : "Black"} ran out of time!`;
+
+  if (winner === "white") {
+    stats.whiteWins++;
+  } else {
+    stats.blackWins++;
+  }
+
+  await ratingManager(game, winner, io);
+  await historyManager(game, winner, reason);
+
   io.to(game.id).emit("timeOut", {
     winner,
-    message: `${color === "white" ? "White" : "Black"} ran out of time!`,
+    message: reason,
   });
 
   const gameManager = require("./gameManager");
@@ -99,7 +116,7 @@ const syncActiveTimer = (game, io) => {
 
   if (state.remainingMs[color] <= 0) {
     emitTimerUpdate(game, io, true);
-    handleTimeout(game, io, color);
+    void handleTimeout(game, io, color);
     return true;
   }
 

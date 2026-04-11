@@ -42,7 +42,7 @@
               <div class="player-summary">
                 <div class="status-pill status-pill-strong">
                   <strong>Rating</strong>
-                  <span><%= user.rating %></span>
+                  <span id="user-rating-value"><%= user.rating %></span>
                 </div>
 
                 <% if (user.isGuest) { %>
@@ -200,6 +200,9 @@
           <p id="finding-match-subtext">Please wait</p>
           <div class="loading-spinner"></div>
           <p id="finding-match-status">Connecting you with an opponent</p>
+          <button id="cancel-matchmaking-button" class="btn btn-ghost cancel-matchmaking-button">
+            Cancel
+          </button>
         </div>
       </section>
 
@@ -328,6 +331,26 @@
               <p>Every move, in order, with the current sequence highlighted.</p>
             </div>
             <div id="move-history" class="move-history"></div>
+
+            <div id="opponent-chat-panel" class="chat-panel" style="display: none">
+              <div class="move-history-heading">
+                <h3>Opponent Chat</h3>
+                <p>Only available in online matches.</p>
+              </div>
+              <div id="chat-messages" class="chat-messages">
+                <p class="chat-empty">No messages yet.</p>
+              </div>
+              <form id="chat-form" class="chat-form" autocomplete="off">
+                <input
+                  id="chat-input"
+                  class="chat-input"
+                  type="text"
+                  maxlength="300"
+                  placeholder="Type a message..."
+                />
+                <button type="submit" class="btn btn-info chat-send-button">Send</button>
+              </form>
+            </div>
           </aside>
         </div>
       </section>

@@ -2,11 +2,6 @@ const User = require("../models/User");
 
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 
-const sanitizeName = (value) => {
-  if (!value) return "";
-  return String(value).trim().replace(/\s+/g, " ").slice(0, 20);
-};
-
 const sanitizeDisplayName = (value) => {
   if (!value) return "";
   return String(value).trim().replace(/\s+/g, " ").slice(0, 30);
@@ -55,28 +50,7 @@ exports.updateProfile = async (req, res) => {
       });
     }
 
-    const nextUsername = sanitizeName(req.body.username);
     const nextDisplayName = sanitizeDisplayName(req.body.displayName);
-
-    if (nextUsername.length < 3) {
-      return res.status(400).render("profile", {
-        user,
-        error: "Username must be at least 3 characters.",
-        success: null,
-      });
-    }
-
-    if (nextUsername !== user.username) {
-      const exists = await User.findOne({ username: nextUsername });
-      if (exists) {
-        return res.status(400).render("profile", {
-          user,
-          error: "That username is already taken.",
-          success: null,
-        });
-      }
-      user.username = nextUsername;
-    }
 
     user.displayName = nextDisplayName;
 
@@ -113,6 +87,52 @@ exports.updateProfile = async (req, res) => {
     return res.status(500).render("profile", {
       user: req.user,
       error: "Failed to update profile settings.",
+      success: null,
+    });
+  }
+};
+
+exports.deleteAccount = async (req, res) => {
+  try {
+    if (req.user?.isGuest) {
+      return res.render("profile", {
+        user: req.user,
+        error: "Guest users do not have a saved account to delete.",
+        success: null,
+      });
+    }
+
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) {
+      res.cookie("token", "none", {
+        expires: new Date(Date.now() + 10 * 1000),
+        httpOnly: true,
+      });
+      return res.redirect("/auth/login");
+    }
+
+    const confirmation = String(req.body.confirmDelete || "").trim();
+    if (confirmation !== "DELETE") {
+      return res.status(400).render("profile", {
+        user,
+        error: "To delete your account, type DELETE exactly.",
+        success: null,
+      });
+    }
+
+    await User.findByIdAndDelete(req.user.id);
+
+    res.cookie("token", "none", {
+      expires: new Date(Date.now() + 10 * 1000),
+      httpOnly: true,
+    });
+
+    return res.redirect("/auth/login");
+  } catch (error) {
+    console.error("Delete account error:", error);
+    return res.status(500).render("profile", {
+      user: req.user,
+      error: "Failed to delete account.",
       success: null,
     });
   }

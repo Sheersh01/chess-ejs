@@ -18,6 +18,14 @@ const createGame = (white, black, whiteUserId, blackUserId, options = {}) => {
     chess: new Chess(),
     players: { white, black },
     userIds: { white: whiteUserId, black: blackUserId },
+    playerMeta: options.playerMeta || {
+      white: {},
+      black: {},
+    },
+    initialRatings: options.initialRatings || {
+      white: 1200,
+      black: 1200,
+    },
     isBotGame,
     bot:
       isBotGame && options.botColor
@@ -72,10 +80,14 @@ const cleanupGame = (gameId) => {
     }
     // Remove socket mappings
     if (isSocketPlayer(game.players.white)) {
-      socketToGame.delete(game.players.white);
+      if (socketToGame.get(game.players.white) === gameId) {
+        socketToGame.delete(game.players.white);
+      }
     }
     if (isSocketPlayer(game.players.black)) {
-      socketToGame.delete(game.players.black);
+      if (socketToGame.get(game.players.black) === gameId) {
+        socketToGame.delete(game.players.black);
+      }
     }
     // Remove game
     games.delete(gameId);

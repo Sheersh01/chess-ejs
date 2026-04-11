@@ -4,6 +4,7 @@ const { protect } = require("../middleware/auth");
 const {
   getProfilePage,
   updateProfile,
+  deleteAccount,
 } = require("../controllers/profileController");
 
 router.get("/", protect, (req, res) => {
@@ -12,6 +13,7 @@ router.get("/", protect, (req, res) => {
 
 router.get("/profile", protect, getProfilePage);
 router.post("/profile", protect, updateProfile);
+router.post("/profile/delete", protect, deleteAccount);
 
 router.get("/stats", (req, res) => {
   const gameStats = require("../stats/gameStats");

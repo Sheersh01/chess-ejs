@@ -24,11 +24,20 @@ const botPersonalitySelect = document.getElementById("bot-personality-select");
 const findingMatchText = document.getElementById("finding-match-text");
 const findingMatchSubtext = document.getElementById("finding-match-subtext");
 const findingMatchStatus = document.getElementById("finding-match-status");
+const cancelMatchmakingButton = document.getElementById(
+  "cancel-matchmaking-button",
+);
 const countdownNumber = document.getElementById("countdown-number");
 const resignButton = document.getElementById("resign-button");
 const drawOfferButton = document.getElementById("draw-offer-button");
 const moveHistoryContainer = document.querySelector(".move-history-container");
 const moveHistoryElement = document.getElementById("move-history");
+const userRatingValueElement = document.getElementById("user-rating-value");
+const opponentChatPanel = document.getElementById("opponent-chat-panel");
+const chatMessagesElement = document.getElementById("chat-messages");
+const chatForm = document.getElementById("chat-form");
+const chatInput = document.getElementById("chat-input");
+const topbarNavLinks = document.querySelectorAll(".topbar-actions .nav-btn");
 
 let draggedPiece = null;
 let sourceSquare = null;
@@ -40,6 +49,14 @@ let currentTurn = "w";
 let currentTimers = { white: 600, black: 600 };
 let timerSyncAt = Date.now();
 let timerRenderInterval = null;
+let currentMatchRequestMode = null;
+let lastPlayedMode = null;
+let playAgainOverlay = null;
+let isMatchExitLocked = false;
+let hasPushedMatchLockState = false;
+
+const MATCH_EXIT_BLOCK_MESSAGE =
+  "Finish the current match first. Leaving is disabled while a game is active.";
 
 // Notification system
 const showNotification = (message, type = "info", duration = 3000) => {
@@ -74,6 +91,101 @@ const showNotification = (message, type = "info", duration = 3000) => {
 
   return notification;
 };
+
+const applyMatchLockBannerIfNeeded = () => {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("matchExitBlocked")) {
+    return;
+  }
+
+  showNotification(MATCH_EXIT_BLOCK_MESSAGE, "warning", 3500);
+  params.delete("matchExitBlocked");
+  const nextQuery = params.toString();
+  const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
+  window.history.replaceState({}, "", nextUrl);
+};
+
+const shouldBlockNavHref = (href = "") => {
+  if (!isMatchExitLocked || !href) {
+    return false;
+  }
+
+  return (
+    href === "/" ||
+    href.startsWith("/profile") ||
+    href.startsWith("/auth/logout")
+  );
+};
+
+const setMatchExitLock = (locked) => {
+  isMatchExitLocked = Boolean(locked);
+
+  topbarNavLinks.forEach((link) => {
+    if (isMatchExitLocked) {
+      link.classList.add("nav-btn-disabled");
+      link.setAttribute("aria-disabled", "true");
+      link.setAttribute("title", "Finish the current match to use this action");
+    } else {
+      link.classList.remove("nav-btn-disabled");
+      link.removeAttribute("aria-disabled");
+      link.removeAttribute("title");
+    }
+  });
+
+  if (isMatchExitLocked && !hasPushedMatchLockState) {
+    window.history.pushState({ matchLock: true }, "", window.location.href);
+    hasPushedMatchLockState = true;
+  }
+
+  if (!isMatchExitLocked) {
+    hasPushedMatchLockState = false;
+  }
+};
+
+const setGameControlsVisibility = (visible) => {
+  const displayValue = visible ? "block" : "none";
+  resignButton.style.display = displayValue;
+  drawOfferButton.style.display = displayValue;
+
+  if (visible) {
+    drawOfferButton.disabled = false;
+    drawOfferButton.style.opacity = "1";
+    drawOfferButton.textContent = "🤝 Offer Draw";
+  }
+};
+
+document.addEventListener("click", (event) => {
+  const anchor = event.target.closest("a[href]");
+  if (!anchor) {
+    return;
+  }
+
+  const href = anchor.getAttribute("href") || "";
+  if (shouldBlockNavHref(href)) {
+    event.preventDefault();
+    showNotification(MATCH_EXIT_BLOCK_MESSAGE, "warning", 2600);
+  }
+});
+
+window.addEventListener("beforeunload", (event) => {
+  if (!isMatchExitLocked) {
+    return;
+  }
+
+  event.preventDefault();
+  event.returnValue = "";
+});
+
+window.addEventListener("popstate", () => {
+  if (!isMatchExitLocked) {
+    return;
+  }
+
+  window.history.pushState({ matchLock: true }, "", window.location.href);
+  showNotification(MATCH_EXIT_BLOCK_MESSAGE, "warning", 2200);
+});
+
+applyMatchLockBannerIfNeeded();
 
 // Sound effects system
 const sounds = {
@@ -155,6 +267,81 @@ const stopTimerRendering = () => {
   timerRenderInterval = null;
 };
 
+const arrangePlayerCardsForRole = () => {
+  if (!playerRole) {
+    return;
+  }
+
+  const whiteCard = whiteTimerElement?.closest(".player-card");
+  const blackCard = blackTimerElement?.closest(".player-card");
+  const cardColumn = whiteCard?.parentElement;
+
+  if (!whiteCard || !blackCard || !cardColumn) {
+    return;
+  }
+
+  // Keep local player on the bottom card for consistent orientation.
+  if (playerRole === "w") {
+    cardColumn.insertBefore(blackCard, whiteCard);
+  } else if (playerRole === "b") {
+    cardColumn.insertBefore(whiteCard, blackCard);
+  }
+};
+
+const clearChatMessages = (emptyText = "No messages yet.") => {
+  if (!chatMessagesElement) {
+    return;
+  }
+
+  chatMessagesElement.innerHTML = "";
+  const empty = document.createElement("p");
+  empty.className = "chat-empty";
+  empty.textContent = emptyText;
+  chatMessagesElement.appendChild(empty);
+};
+
+const setChatVisibilityForMode = (mode) => {
+  if (!opponentChatPanel || !chatInput) {
+    return;
+  }
+
+  const isOnline = mode === "online";
+  opponentChatPanel.style.display = isOnline ? "grid" : "none";
+  chatInput.disabled = !isOnline;
+
+  if (!isOnline) {
+    clearChatMessages("Chat is available only in online matches.");
+  }
+};
+
+const appendChatMessage = ({ message, sender }) => {
+  if (!chatMessagesElement || !message) {
+    return;
+  }
+
+  const existingEmpty = chatMessagesElement.querySelector(".chat-empty");
+  if (existingEmpty) {
+    existingEmpty.remove();
+  }
+
+  const row = document.createElement("div");
+  const isOwnMessage = sender?.id && socket?.id && sender.id === socket.id;
+  row.className = `chat-row ${isOwnMessage ? "ours" : "theirs"}`;
+
+  const senderLabel = document.createElement("span");
+  senderLabel.className = "chat-sender";
+  senderLabel.textContent = isOwnMessage ? "You" : sender?.name || "Opponent";
+
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble";
+  bubble.textContent = message;
+
+  row.appendChild(senderLabel);
+  row.appendChild(bubble);
+  chatMessagesElement.appendChild(row);
+  chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
+};
+
 // Update move history display
 const updateMoveHistory = (history = null) => {
   try {
@@ -226,6 +413,12 @@ const getSelectedColorLabel = () => {
 
 const showMatchmakingScreenForMode = (mode) => {
   const colorLabel = getSelectedColorLabel();
+  currentMatchRequestMode = mode;
+
+  if (cancelMatchmakingButton) {
+    cancelMatchmakingButton.style.display =
+      mode === "online" ? "inline-flex" : "none";
+  }
 
   if (mode === "bot") {
     const difficulty = botDifficultySelect?.value || "medium";
@@ -236,7 +429,8 @@ const showMatchmakingScreenForMode = (mode) => {
   } else {
     findingMatchText.textContent = "Finding a match...";
     findingMatchSubtext.textContent = `Preferred color: ${colorLabel}`;
-    findingMatchStatus.textContent = "Connecting you with a compatible opponent";
+    findingMatchStatus.textContent =
+      "Connecting you with a compatible opponent";
   }
 };
 
@@ -244,13 +438,17 @@ const requestMatchForMode = (mode) => {
   // Hide landing screen and show finding match screen
   landingScreen.style.display = "none";
   findingMatchScreen.style.display = "flex";
+  gameArea.style.display = "none";
   showMatchmakingScreenForMode(mode);
+  lastPlayedMode = mode;
+  closePlayAgainPopup();
+  setChatVisibilityForMode(mode);
+  clearChatMessages();
 
   // Initialize socket connection
   if (!socket) {
     socket = io();
     initializeSocketListeners();
-    gameStarted = true;
   }
 
   if (mode === "bot") {
@@ -266,6 +464,17 @@ const requestMatchForMode = (mode) => {
   }
 };
 
+const resetToLandingScreen = () => {
+  setMatchExitLock(false);
+  gameStarted = false;
+  setGameControlsVisibility(false);
+  currentMatchRequestMode = null;
+  findingMatchScreen.style.display = "none";
+  countdownScreen.style.display = "none";
+  gameArea.style.display = "none";
+  landingScreen.style.display = "block";
+};
+
 // Handle Play buttons
 playOnlineButton.addEventListener("click", () => {
   requestMatchForMode("online");
@@ -273,6 +482,31 @@ playOnlineButton.addEventListener("click", () => {
 
 playBotButton.addEventListener("click", () => {
   requestMatchForMode("bot");
+});
+
+cancelMatchmakingButton?.addEventListener("click", () => {
+  if (!socket || currentMatchRequestMode !== "online") {
+    resetToLandingScreen();
+    return;
+  }
+
+  socket.emit("cancelMatchmaking");
+});
+
+chatForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  if (!socket || lastPlayedMode !== "online" || !chatInput) {
+    return;
+  }
+
+  const message = chatInput.value.trim();
+  if (!message) {
+    return;
+  }
+
+  socket.emit("chatMessage", { message });
+  chatInput.value = "";
 });
 
 // Handle Resign button click
@@ -456,6 +690,134 @@ const showDrawOfferDialog = (offerColor) => {
   dialog.appendChild(buttonsContainer);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
+};
+
+const closePlayAgainPopup = () => {
+  if (!playAgainOverlay) {
+    return;
+  }
+
+  playAgainOverlay.remove();
+  playAgainOverlay = null;
+};
+
+const showPlayAgainPopup = (summaryMessage = "Game finished.") => {
+  if (playAgainOverlay) {
+    const summary = playAgainOverlay.querySelector(".play-again-summary");
+    if (summary) {
+      summary.textContent = summaryMessage;
+    }
+    return;
+  }
+
+  const mode = lastPlayedMode || "online";
+  const modeLabel = mode === "bot" ? "Bot Match" : "Online Match";
+
+  const overlay = document.createElement("div");
+  overlay.id = "play-again-overlay";
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.78);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1200;
+    animation: fadeIn 0.25s ease;
+  `;
+
+  const dialog = document.createElement("div");
+  dialog.style.cssText = `
+    background: #0b1628;
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 16px;
+    padding: 24px;
+    width: min(90vw, 420px);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+  `;
+
+  const title = document.createElement("h3");
+  title.textContent = "Match Ended";
+  title.style.cssText = `
+    margin: 0 0 10px 0;
+    color: #eaf2ff;
+    font-size: 24px;
+  `;
+
+  const summary = document.createElement("p");
+  summary.className = "play-again-summary";
+  summary.textContent = summaryMessage;
+  summary.style.cssText = `
+    margin: 0;
+    color: #c0cee3;
+    line-height: 1.6;
+  `;
+
+  const subtitle = document.createElement("p");
+  subtitle.textContent = `Queue again for ${modeLabel}?`;
+  subtitle.style.cssText = `
+    margin: 10px 0 20px 0;
+    color: #89a0bd;
+    line-height: 1.6;
+  `;
+
+  const buttons = document.createElement("div");
+  buttons.style.cssText = `
+    display: flex;
+    gap: 12px;
+  `;
+
+  const playAgainAction = document.createElement("button");
+  playAgainAction.textContent = "Play Again";
+  playAgainAction.style.cssText = `
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #06231b;
+    background: linear-gradient(135deg, #6ef0c6, #4fd1a6);
+  `;
+  playAgainAction.onclick = () => {
+    closePlayAgainPopup();
+    requestMatchForMode(mode);
+  };
+
+  const closeAction = document.createElement("button");
+  closeAction.textContent = "Close";
+  closeAction.style.cssText = `
+    flex: 1;
+    border: 1px solid rgba(148, 163, 184, 0.34);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #eaf2ff;
+    background: rgba(148, 163, 184, 0.1);
+  `;
+  closeAction.onclick = closePlayAgainPopup;
+
+  buttons.appendChild(playAgainAction);
+  buttons.appendChild(closeAction);
+
+  dialog.appendChild(title);
+  dialog.appendChild(summary);
+  dialog.appendChild(subtitle);
+  dialog.appendChild(buttons);
+  overlay.appendChild(dialog);
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      closePlayAgainPopup();
+    }
+  });
+
+  document.body.appendChild(overlay);
+  playAgainOverlay = overlay;
 };
 
 const renderBoard = () => {
@@ -944,9 +1306,12 @@ const getPieceUnicode = (piece) => {
 const initializeSocketListeners = () => {
   socket.on("playerRole", (role) => {
     playerRole = role;
+    arrangePlayerCardsForRole();
   });
 
   socket.on("waitingForMatch", () => {
+    lastPlayedMode = "online";
+    currentMatchRequestMode = "online";
     findingMatchScreen.style.display = "flex";
     gameArea.style.display = "none";
     findingMatchText.textContent = "Waiting for opponent...";
@@ -956,13 +1321,15 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("waitingForBotMatch", () => {
+    lastPlayedMode = "bot";
+    currentMatchRequestMode = "bot";
     findingMatchScreen.style.display = "flex";
     gameArea.style.display = "none";
     const difficulty = botDifficultySelect?.value || "medium";
     const personality = botPersonalitySelect?.value || "positional";
     const colorLabel = getSelectedColorLabel();
     findingMatchText.textContent = "Preparing bot match...";
-    findingMatchSubtext.textContent =             `Chess Bot: ${difficulty.toUpperCase()} | ${personality} | ${colorLabel}`;
+    findingMatchSubtext.textContent = `Chess Bot: ${difficulty.toUpperCase()} | ${personality} | ${colorLabel}`;
     findingMatchStatus.textContent = "Game starts after countdown";
   });
 
@@ -975,6 +1342,7 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("startCountdown", () => {
+    currentMatchRequestMode = null;
     findingMatchScreen.style.display = "none";
     countdownScreen.style.display = "flex";
   });
@@ -984,18 +1352,22 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("gameStart", () => {
+    gameStarted = true;
+    setMatchExitLock(true);
     countdownScreen.style.display = "none";
     gameArea.style.display = "flex";
+
+    arrangePlayerCardsForRole();
+    closePlayAgainPopup();
 
     // Play game start sound
     playSound("gameStart");
 
-    // Show resign button, draw offer button and move history for players (not spectators)
-    if (playerRole) {
-      resignButton.style.display = "block";
-      drawOfferButton.style.display = "block";
-    }
+    // Show controls for players (not spectators).
+    setGameControlsVisibility(Boolean(playerRole));
     moveHistoryContainer.style.display = "block";
+    setChatVisibilityForMode(lastPlayedMode || "online");
+    clearChatMessages();
 
     renderBoard();
     updateMoveHistory();
@@ -1070,6 +1442,10 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("gameResigned", (data) => {
+    gameStarted = false;
+    setMatchExitLock(false);
+    stopTimerRendering();
+    setGameControlsVisibility(false);
     // Play game end sound
     playSound("gameEnd");
 
@@ -1077,15 +1453,7 @@ const initializeSocketListeners = () => {
     messageElement.innerText = data.message;
     messageElement.style.display = "block";
 
-    // Show popup alert
-    const winnerColor = data.winner === "w" ? "White" : "Black";
-    const resignedColor = data.resignedColor === "w" ? "White" : "Black";
-
-    setTimeout(() => {
-      alert(
-        `🏳️ Game Over!\n\n${resignedColor} resigned.\n${winnerColor} wins!\n\nGame will restart shortly...`,
-      );
-    }, 100);
+    // Wait for the final gameOver event before offering replay.
   });
 
   socket.on("turnChange", (turn) => {
@@ -1113,14 +1481,14 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("timeOut", (data) => {
+    gameStarted = false;
+    setMatchExitLock(false);
     stopTimerRendering();
 
     // Play game end sound
     playSound("gameEnd");
 
-    // Hide resign and draw buttons when game ends
-    resignButton.style.display = "none";
-    drawOfferButton.style.display = "none";
+    setGameControlsVisibility(false);
 
     messageElement.innerText = data.message;
     messageElement.style.display = "block";
@@ -1135,17 +1503,19 @@ const initializeSocketListeners = () => {
       blackTimerElement.classList.remove("active");
       blackTimerElement.classList.add("warning");
     }
+
+    showPlayAgainPopup(data.message || "Time ran out.");
   });
 
   socket.on("gameOver", (data) => {
+    gameStarted = false;
+    setMatchExitLock(false);
     stopTimerRendering();
 
     // Play game end sound
     playSound("gameEnd");
 
-    // Hide resign and draw buttons when game ends
-    resignButton.style.display = "none";
-    drawOfferButton.style.display = "none";
+    setGameControlsVisibility(false);
 
     messageElement.innerText = data.message;
     messageElement.style.display = "block";
@@ -1154,6 +1524,8 @@ const initializeSocketListeners = () => {
     messageElement.style.color = "white";
 
     showNotification(data.message, "success", 5000);
+
+    showPlayAgainPopup(data.message || "Game over.");
   });
 
   socket.on("lowTime", (data) => {
@@ -1169,7 +1541,43 @@ const initializeSocketListeners = () => {
 
   socket.on("ratingUpdate", (userData) => {
     console.log("Rating updated:", userData.rating);
+    if (userRatingValueElement && typeof userData.rating !== "undefined") {
+      userRatingValueElement.textContent = userData.rating;
+    }
     showNotification(`Your new rating: ${userData.rating}`, "info", 3000);
+  });
+
+  socket.on("matchmakingBlocked", (data) => {
+    setMatchExitLock(false);
+    closePlayAgainPopup();
+    resetToLandingScreen();
+    setChatVisibilityForMode("bot");
+    showNotification(
+      data?.message ||
+        "This account is already active in another tab or window.",
+      "warning",
+      4000,
+    );
+  });
+
+  socket.on("matchmakingCancelled", () => {
+    setMatchExitLock(false);
+    closePlayAgainPopup();
+    resetToLandingScreen();
+    setChatVisibilityForMode("bot");
+    showNotification("Match search cancelled.", "info", 2500);
+  });
+
+  socket.on("chatMessage", (payload) => {
+    if (lastPlayedMode !== "online") {
+      return;
+    }
+
+    appendChatMessage(payload);
+  });
+
+  socket.on("chatError", (payload) => {
+    showNotification(payload?.message || "Chat unavailable.", "warning", 2500);
   });
 
   socket.on("capturedPiecesUpdate", (capturedPieces) => {
@@ -1242,7 +1650,10 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("drawAccepted", (data) => {
+    gameStarted = false;
+    setMatchExitLock(false);
     stopTimerRendering();
+    setGameControlsVisibility(false);
 
     // Show game over message
     messageElement.innerText = data.message;
@@ -1250,14 +1661,8 @@ const initializeSocketListeners = () => {
     messageElement.style.backgroundColor = "#3b82f6";
     messageElement.style.color = "white";
 
-    // Show popup alert
-    setTimeout(() => {
-      alert(
-        `🤝 Game Over!\n\nDraw accepted by both players.\n\nGame will restart shortly...`,
-      );
-    }, 100);
-
     playSound("gameEnd");
+    // Wait for gameOver event before showing replay prompt.
   });
 
   socket.on("drawDeclined", (data) => {

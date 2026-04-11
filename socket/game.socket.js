@@ -1,6 +1,7 @@
 const gameManager = require("../game/gameManager");
 const timerManager = require("../game/timerManager");
 const ratingManager = require("../game/ratingManager");
+const historyManager = require("../game/historyManager");
 const botManager = require("../game/botManager");
 const { stats } = require("../stats/gameStats");
 const { pieceValues } = require("../game/constants");
@@ -15,6 +16,14 @@ const calculateScore = (capturedPieces) => {
 
 const isSocketPlayer = (playerId) =>
   typeof playerId === "string" && !playerId.startsWith("bot_");
+
+const sanitizeChatMessage = (message) => {
+  if (typeof message !== "string") {
+    return "";
+  }
+
+  return message.replace(/\s+/g, " ").trim().slice(0, 300);
+};
 
 const applyMoveEffects = (game, move, io) => {
   game.moveHistory.push(move);
@@ -67,6 +76,8 @@ const resolveGameResult = (game) => {
 
 // Helper function to handle game end
 const handleGameEnd = async (game, io, result, reason) => {
+  game.isFinished = true;
+
   // Stop the timer
   timerManager.stopTimer(game);
 
@@ -87,6 +98,7 @@ const handleGameEnd = async (game, io, result, reason) => {
 
   // Update player ratings
   await ratingManager(game, result, io);
+  await historyManager(game, result, reason);
 
   // Notify players about game end
   let message;
@@ -232,6 +244,44 @@ module.exports = (io) => {
         console.error("Move error:", error);
         socket.emit("error", { message: "Failed to process move" });
       }
+    });
+
+    socket.on("chatMessage", (payload = {}) => {
+      const game = gameManager.getGameBySocket(socket.id);
+
+      if (!game || game.isFinished) {
+        return;
+      }
+
+      if (game.isBotGame) {
+        socket.emit("chatError", {
+          message: "Chat is only available in online matches.",
+        });
+        return;
+      }
+
+      const isParticipant =
+        game.players.white === socket.id || game.players.black === socket.id;
+
+      if (!isParticipant) {
+        return;
+      }
+
+      const message = sanitizeChatMessage(payload.message);
+      if (!message) {
+        return;
+      }
+
+      const isWhitePlayer = game.players.white === socket.id;
+      io.to(game.id).emit("chatMessage", {
+        message,
+        sender: {
+          id: socket.id,
+          name: socket.user?.displayName || socket.user?.username || "Player",
+          color: isWhitePlayer ? "w" : "b",
+        },
+        sentAt: Date.now(),
+      });
     });
 
     // Handle resignation

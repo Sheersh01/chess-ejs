@@ -1,22 +1,42 @@
 const User = require("../models/User");
 
 module.exports = async function updateRatings(game, result, io) {
-  // Skip rating updates for guest users
   const whitePlayer = game.userIds.white;
   const blackPlayer = game.userIds.black;
+  const BOT_RATING = 1200;
+  const isBotUser = (playerId) =>
+    typeof playerId === "string" &&
+    (playerId === "bot_engine" || playerId.startsWith("bot_"));
 
-  // Check if either player is a guest (guest IDs start with 'guest_')
   const isWhiteGuest =
     typeof whitePlayer === "string" && whitePlayer.startsWith("guest_");
   const isBlackGuest =
     typeof blackPlayer === "string" && blackPlayer.startsWith("guest_");
-  const isWhiteBot =
-    typeof whitePlayer === "string" && whitePlayer.startsWith("bot_");
-  const isBlackBot =
-    typeof blackPlayer === "string" && blackPlayer.startsWith("bot_");
+  const isWhiteBot = isBotUser(whitePlayer);
+  const isBlackBot = isBotUser(blackPlayer);
 
-  if (isWhiteGuest || isBlackGuest || isWhiteBot || isBlackBot) {
-    console.log("Skipping rating update for guest/bot players");
+  if (isWhiteGuest || isBlackGuest) {
+    console.log("Skipping rating update for guest players");
+    return;
+  }
+
+  if (isWhiteBot || isBlackBot) {
+    const humanPlayerId = isWhiteBot ? blackPlayer : whitePlayer;
+    const humanSocketId = isWhiteBot ? game.players.black : game.players.white;
+    const humanResult =
+      result === "draw"
+        ? "draw"
+        : (isWhiteBot && result === "black") || (isBlackBot && result === "white")
+          ? "win"
+          : "loss";
+
+    const human = await User.findById(humanPlayerId);
+    if (!human) return;
+
+    human.updateRating(BOT_RATING, humanResult);
+    await human.save();
+
+    io.to(humanSocketId).emit("ratingUpdate", human);
     return;
   }
 

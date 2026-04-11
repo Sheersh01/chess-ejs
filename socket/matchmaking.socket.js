@@ -7,6 +7,38 @@ const matchmakingQueue = [];
 const BOT_SOCKET_ID = "bot_engine";
 const BOT_USER_ID = "bot_engine";
 const BOT_USERNAME = "Chess Bot";
+const toUserKey = (userId) => String(userId);
+
+const isSameUser = (playerA, playerB) =>
+  toUserKey(playerA.userId) === toUserKey(playerB.userId);
+
+const removePlayerFromQueue = (socketId) => {
+  const index = matchmakingQueue.findIndex(
+    (player) => player.socketId === socketId,
+  );
+  if (index === -1) {
+    return false;
+  }
+
+  matchmakingQueue.splice(index, 1);
+  return true;
+};
+
+const isUserQueued = (userId) =>
+  matchmakingQueue.some(
+    (player) => toUserKey(player.userId) === toUserKey(userId),
+  );
+
+const isUserInActiveGame = (userId) => {
+  const userKey = toUserKey(userId);
+
+  return Array.from(gameManager.games.values()).some(
+    (game) =>
+      !game.isFinished &&
+      (toUserKey(game.userIds.white) === userKey ||
+        toUserKey(game.userIds.black) === userKey),
+  );
+};
 
 const normalizeColorPreference = (value) => {
   if (value === "white" || value === "w") return "w";
@@ -126,11 +158,19 @@ const findMatch = (newPlayer) => {
     const waitingPlayer = matchmakingQueue[i];
 
     // Don't match with yourself
-    if (waitingPlayer.socketId === newPlayer.socketId) continue;
+    if (
+      waitingPlayer.socketId === newPlayer.socketId ||
+      isSameUser(waitingPlayer, newPlayer)
+    ) {
+      continue;
+    }
 
     // Check if ratings are within acceptable range
     const ratingDiff = Math.abs(waitingPlayer.rating - newPlayer.rating);
-    if (ratingDiff <= RATING_RANGE && canMatchColors(waitingPlayer, newPlayer)) {
+    if (
+      ratingDiff <= RATING_RANGE &&
+      canMatchColors(waitingPlayer, newPlayer)
+    ) {
       // Remove matched player from queue
       matchmakingQueue.splice(i, 1);
       return waitingPlayer;
@@ -150,6 +190,22 @@ const startGame = (io, player1, player2) => {
     blackPlayer.socketId,
     whitePlayer.userId,
     blackPlayer.userId,
+    {
+      playerMeta: {
+        white: {
+          username: whitePlayer.username,
+          displayName: whitePlayer.displayName || whitePlayer.username,
+        },
+        black: {
+          username: blackPlayer.username,
+          displayName: blackPlayer.displayName || blackPlayer.username,
+        },
+      },
+      initialRatings: {
+        white: whitePlayer.rating,
+        black: blackPlayer.rating,
+      },
+    },
   );
 
   // Assign player roles
@@ -204,6 +260,32 @@ const startBotGame = (io, player, settings) => {
     humanColor === "w" ? player.userId : BOT_USER_ID,
     humanColor === "w" ? BOT_USER_ID : player.userId,
     {
+      playerMeta: {
+        white:
+          humanColor === "w"
+            ? {
+                username: player.username,
+                displayName: player.displayName || player.username,
+              }
+            : {
+                username: BOT_USERNAME,
+                displayName: BOT_USERNAME,
+              },
+        black:
+          humanColor === "w"
+            ? {
+                username: BOT_USERNAME,
+                displayName: BOT_USERNAME,
+              }
+            : {
+                username: player.username,
+                displayName: player.displayName || player.username,
+              },
+      },
+      initialRatings: {
+        white: humanColor === "w" ? player.rating : 1200,
+        black: humanColor === "w" ? 1200 : player.rating,
+      },
       isBotGame: true,
       botColor,
       humanColor,
@@ -246,6 +328,16 @@ module.exports = (io) => {
     console.log(`Player connected: ${socket.user?.username} (${socket.id})`);
 
     socket.on("findMatch", (payload = {}) => {
+      const userId = socket.user._id || socket.user.id;
+
+      if (isUserInActiveGame(userId)) {
+        socket.emit("matchmakingBlocked", {
+          message:
+            "This account is already playing a game in another tab or window.",
+        });
+        return;
+      }
+
       const alreadyQueued = matchmakingQueue.some(
         (queuedPlayer) => queuedPlayer.socketId === socket.id,
       );
@@ -255,10 +347,19 @@ module.exports = (io) => {
         return;
       }
 
+      if (isUserQueued(userId)) {
+        socket.emit("matchmakingBlocked", {
+          message:
+            "This account is already searching for a match in another tab or window.",
+        });
+        return;
+      }
+
       const player = {
         socketId: socket.id,
-        userId: socket.user._id || socket.user.id,
+        userId,
         username: socket.user.username,
+        displayName: socket.user.displayName || socket.user.username,
         rating: socket.user.rating,
         colorPreference: normalizeColorPreference(payload.colorPreference),
         joinedAt: Date.now(),
@@ -279,34 +380,65 @@ module.exports = (io) => {
     });
 
     socket.on("playBot", (payload = {}) => {
-      const waitingIndex = matchmakingQueue.findIndex(
-        (queuedPlayer) => queuedPlayer.socketId === socket.id,
-      );
+      const userId = socket.user._id || socket.user.id;
 
-      if (waitingIndex !== -1) {
-        matchmakingQueue.splice(waitingIndex, 1);
+      if (isUserInActiveGame(userId)) {
+        socket.emit("matchmakingBlocked", {
+          message:
+            "This account is already playing a game in another tab or window.",
+        });
+        return;
       }
+
+      if (
+        isUserQueued(userId) &&
+        !matchmakingQueue.some((player) => player.socketId === socket.id)
+      ) {
+        socket.emit("matchmakingBlocked", {
+          message:
+            "This account is already searching for a match in another tab or window.",
+        });
+        return;
+      }
+
+      removePlayerFromQueue(socket.id);
 
       socket.emit("waitingForBotMatch");
 
       const player = {
         socketId: socket.id,
-        userId: socket.user._id || socket.user.id,
+        userId,
         username: socket.user.username,
+        displayName: socket.user.displayName || socket.user.username,
         rating: socket.user.rating,
       };
 
       const settings = parseBotSettings(payload);
-      settings.colorPreference = normalizeColorPreference(payload.colorPreference);
+      settings.colorPreference = normalizeColorPreference(
+        payload.colorPreference,
+      );
       startBotGame(io, player, settings);
+    });
+
+    socket.on("cancelMatchmaking", () => {
+      const removed = removePlayerFromQueue(socket.id);
+
+      socket.emit("matchmakingCancelled", {
+        cancelled: removed,
+      });
+
+      if (removed) {
+        console.log(
+          `${socket.user?.username} cancelled matchmaking. Queue size: ${matchmakingQueue.length}`,
+        );
+      }
     });
 
     // Handle player disconnect
     socket.on("disconnect", () => {
       // Remove from matchmaking queue if still waiting
-      const index = matchmakingQueue.findIndex((p) => p.socketId === socket.id);
-      if (index !== -1) {
-        matchmakingQueue.splice(index, 1);
+      const removed = removePlayerFromQueue(socket.id);
+      if (removed) {
         console.log(
           `${socket.user?.username} removed from queue. Queue size: ${matchmakingQueue.length}`,
         );

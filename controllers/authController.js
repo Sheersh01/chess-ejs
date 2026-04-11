@@ -1,5 +1,17 @@
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
+const gameManager = require("../game/gameManager");
+
+const hasUnfinishedGame = (userId) => {
+  const userKey = String(userId);
+
+  return Array.from(gameManager.games.values()).some(
+    (game) =>
+      !game.isFinished &&
+      (String(game.userIds.white) === userKey ||
+        String(game.userIds.black) === userKey),
+  );
+};
 
 // @desc    Register user
 // @route   POST /auth/register
@@ -30,8 +42,8 @@ exports.register = async (req, res) => {
       password,
     });
 
-    // Send token response
-    sendTokenResponse(user, 201, res);
+    // Require a fresh login after registration
+    res.status(201).redirect("/auth/login");
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).render("register", {
@@ -90,6 +102,18 @@ exports.login = async (req, res) => {
 // @desc    Logout user
 // @route   GET /auth/logout
 exports.logout = (req, res) => {
+  try {
+    const token = req.cookies?.token;
+    if (token && token !== "none") {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded?.id && hasUnfinishedGame(decoded.id)) {
+        return res.redirect("/?matchExitBlocked=1");
+      }
+    }
+  } catch (error) {
+    // Ignore token parse failures and continue with logout.
+  }
+
   res.cookie("token", "none", {
     expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,

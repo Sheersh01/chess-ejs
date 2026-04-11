@@ -84,6 +84,53 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    gameHistory: [
+      {
+        opponent: {
+          type: String,
+          required: true,
+          trim: true,
+          maxlength: 40,
+        },
+        mode: {
+          type: String,
+          enum: ["online", "bot"],
+          required: true,
+        },
+        color: {
+          type: String,
+          enum: ["white", "black"],
+          required: true,
+        },
+        result: {
+          type: String,
+          enum: ["win", "loss", "draw"],
+          required: true,
+        },
+        reason: {
+          type: String,
+          default: "",
+          maxlength: 120,
+        },
+        moves: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        ratingBefore: {
+          type: Number,
+          min: 0,
+        },
+        ratingAfter: {
+          type: Number,
+          min: 0,
+        },
+        playedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -145,6 +192,13 @@ userSchema.methods.updateRating = function (opponentRating, result) {
   this.rating = Math.round(this.rating + K * (actualScore - expectedScore));
   this.gamesPlayed += 1;
   this.lastActive = Date.now();
+};
+
+userSchema.methods.addGameHistoryEntry = function (entry) {
+  this.gameHistory.unshift(entry);
+  if (this.gameHistory.length > 20) {
+    this.gameHistory = this.gameHistory.slice(0, 20);
+  }
 };
 
 module.exports = mongoose.model("User", userSchema);
