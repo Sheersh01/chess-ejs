@@ -3,8 +3,13 @@ const timerManager = require("../game/timerManager");
 const ratingManager = require("../game/ratingManager");
 const historyManager = require("../game/historyManager");
 const botManager = require("../game/botManager");
+const {
+  updateGameRecord,
+  finalizeGameRecord,
+} = require("../services/gamePersistence");
 const { stats } = require("../stats/gameStats");
 const { pieceValues } = require("../game/constants");
+const logger = require("../config/logger");
 
 // Helper function to calculate captured pieces value
 const calculateScore = (capturedPieces) => {
@@ -99,6 +104,7 @@ const handleGameEnd = async (game, io, result, reason) => {
   // Update player ratings
   await ratingManager(game, result, io);
   await historyManager(game, result, reason);
+  await finalizeGameRecord(game, result, reason);
 
   // Notify players about game end
   let message;
@@ -193,11 +199,48 @@ const maybeScheduleBotMove = (game, io) => {
   game.bot.pendingMoveTimeout = timeoutId;
 };
 
+const syncReconnectingPlayer = (socket, game, reconnectedColor, io) => {
+  const role = reconnectedColor === "white" ? "w" : "b";
+  socket.emit("playerRole", role);
+  socket.emit("gameStart");
+  socket.emit("boardstate", game.chess.fen());
+  socket.emit("moveHistory", game.moveHistory);
+  socket.emit("turnChange", game.chess.turn());
+  socket.emit("capturedPiecesUpdate", game.capturedPieces);
+  socket.emit("scoreUpdate", game.scores);
+  timerManager.emitTimerUpdate(game, io, true);
+
+  const opponentColor = reconnectedColor === "white" ? "black" : "white";
+  const opponentSocketId = game.players[opponentColor];
+  if (gameManager.isSocketPlayer(opponentSocketId)) {
+    io.to(opponentSocketId).emit("opponentReconnected", {
+      message: `${reconnectedColor === "white" ? "White" : "Black"} reconnected`,
+    });
+  }
+};
+
 module.exports = (io) => {
   io.on("connection", (socket) => {
-    console.log(
-      `Game socket connected: ${socket.user?.username} (${socket.id})`,
-    );
+    logger.info(`Game socket connected: ${socket.user?.username} (${socket.id})`);
+
+    const userId = socket.user?._id || socket.user?.id;
+    if (userId) {
+      const existingGame = gameManager.getGameByUserId(userId);
+      const shouldReconnect =
+        existingGame &&
+        !existingGame.isFinished &&
+        (existingGame.disconnectState?.white || existingGame.disconnectState?.black);
+
+      if (shouldReconnect) {
+        const reconnectResult = gameManager.reconnectPlayer(userId, socket.id);
+        if (reconnectResult) {
+          const { game, reconnectedColor } = reconnectResult;
+          socket.join(game.id);
+          syncReconnectingPlayer(socket, game, reconnectedColor, io);
+          logger.info(`User ${socket.user?.username} reconnected to game ${game.id}`);
+        }
+      }
+    }
 
     // Handle chess moves
     socket.on("move", async (moveData) => {
@@ -234,6 +277,8 @@ module.exports = (io) => {
 
         // But broadcast boardstate and history to all players including sender
         emitBoardState(game, io);
+
+        updateGameRecord(game);
 
         // Check for game end conditions
         const gameEnded = await processGameOverIfNeeded(game, io);
@@ -389,40 +434,40 @@ module.exports = (io) => {
         }
 
         const isWhitePlayer = game.players.white === socket.id;
-        const disconnectedColor = isWhitePlayer ? "White" : "Black";
-        const opponent = isWhitePlayer
-          ? game.players.black
-          : game.players.white;
+        const disconnectedColor = isWhitePlayer ? "white" : "black";
+        const opponentColor = isWhitePlayer ? "black" : "white";
+        const opponent = game.players[opponentColor];
 
-        // Notify opponent
-        if (isSocketPlayer(opponent)) {
+        gameManager.markPlayerDisconnected(game, disconnectedColor);
+        if (gameManager.isSocketPlayer(socket.id)) {
+          gameManager.socketToGame.delete(socket.id);
+        }
+
+        if (gameManager.isSocketPlayer(opponent)) {
           io.to(opponent).emit("opponentDisconnected", {
-            message: `${disconnectedColor} disconnected`,
+            message: `${disconnectedColor === "white" ? "White" : "Black"} disconnected`,
           });
         }
 
-        // Give them 30 seconds to reconnect, otherwise forfeit
-        setTimeout(async () => {
+        game.disconnectTimers[disconnectedColor] = setTimeout(async () => {
           const stillExists = gameManager.games.has(game.id);
-          if (stillExists) {
+          if (stillExists && game.disconnectState?.[disconnectedColor]) {
             const result = isWhitePlayer ? "black" : "white";
             io.to(game.id).emit(
               "gameMessage",
-              `${disconnectedColor} abandoned the game`,
+              `${disconnectedColor === "white" ? "White" : "Black"} abandoned the game`,
             );
             await handleGameEnd(
               game,
               io,
               result,
-              `${disconnectedColor} disconnected`,
+              `${disconnectedColor === "white" ? "White" : "Black"} disconnected`,
             );
           }
         }, 30000);
       }
 
-      console.log(
-        `Player disconnected: ${socket.user?.username} (${socket.id})`,
-      );
+      logger.info(`Player disconnected: ${socket.user?.username} (${socket.id})`);
     });
   });
 };

@@ -1,13 +1,18 @@
 const mongoose = require("mongoose");
+const logger = require("./logger");
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    if (!uri) {
+      logger.warn("No MONGODB_URI set - running without database");
+      return;
+    }
+    const conn = await mongoose.connect(uri);
+    logger.info(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.error(`MongoDB Connection Error: ${error.message}`);
-    console.log("Running without database - guest mode only");
-    // Don't exit - allow server to run for guest users
+    logger.error(`MongoDB Connection Error: ${error.message}`);
+    logger.info("Running without database - guest mode only");
   }
 };
 

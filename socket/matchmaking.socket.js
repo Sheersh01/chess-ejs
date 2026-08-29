@@ -1,6 +1,8 @@
 const gameManager = require("../game/gameManager");
 const timerManager = require("../game/timerManager");
 const botManager = require("../game/botManager");
+const { createGameRecord } = require("../services/gamePersistence");
+const logger = require("../config/logger");
 
 // Matchmaking queue - stores waiting players
 const matchmakingQueue = [];
@@ -236,7 +238,9 @@ const startGame = (io, player1, player2) => {
       // Start game timers
       timerManager.startTimer(game, io);
 
-      console.log(
+      createGameRecord(game);
+
+      logger.info(
         `Game ${game.id} started between ${whitePlayer.username} (white) and ${blackPlayer.username} (black)`,
       );
     }
@@ -316,7 +320,9 @@ const startBotGame = (io, player, settings) => {
       timerManager.startTimer(game, io);
       emitOpeningBotMoveIfNeeded(game, io);
 
-      console.log(
+      createGameRecord(game);
+
+      logger.info(
         `Bot game ${game.id} started for ${player.username} [${settings.difficulty}/${settings.personality}]`,
       );
     }
@@ -325,7 +331,7 @@ const startBotGame = (io, player, settings) => {
 
 module.exports = (io) => {
   io.on("connection", (socket) => {
-    console.log(`Player connected: ${socket.user?.username} (${socket.id})`);
+    logger.info(`Player connected: ${socket.user?.username} (${socket.id})`);
 
     socket.on("findMatch", (payload = {}) => {
       const userId = socket.user._id || socket.user.id;
@@ -368,12 +374,12 @@ module.exports = (io) => {
       const opponent = findMatch(player);
 
       if (opponent) {
-        console.log(`Match found: ${player.username} vs ${opponent.username}`);
+        logger.info(`Match found: ${player.username} vs ${opponent.username}`);
         startGame(io, player, opponent);
       } else {
         matchmakingQueue.push(player);
         socket.emit("waitingForMatch");
-        console.log(
+        logger.info(
           `${player.username} added to queue. Queue size: ${matchmakingQueue.length}`,
         );
       }
@@ -428,7 +434,7 @@ module.exports = (io) => {
       });
 
       if (removed) {
-        console.log(
+        logger.info(
           `${socket.user?.username} cancelled matchmaking. Queue size: ${matchmakingQueue.length}`,
         );
       }
@@ -439,7 +445,7 @@ module.exports = (io) => {
       // Remove from matchmaking queue if still waiting
       const removed = removePlayerFromQueue(socket.id);
       if (removed) {
-        console.log(
+        logger.info(
           `${socket.user?.username} removed from queue. Queue size: ${matchmakingQueue.length}`,
         );
       }

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Test
+        run: npm test
+        env:
+          MONGODB_URI: mongodb://127.0.0.1:27017/chess_test
+          JWT_SECRET: test_secret
+          JWT_EXPIRE: 1h
+          JWT_COOKIE_EXPIRE: 1
+          NODE_ENV: test
+
+      - name: Docker build
+        run: docker build -t chess-app .

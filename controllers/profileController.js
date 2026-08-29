@@ -2,6 +2,9 @@ const User = require("../models/User");
 
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 
+const isApiRequest = (req) => req.originalUrl.includes("/api/");
+
+
 const sanitizeDisplayName = (value) => {
   if (!value) return "";
   return String(value).trim().replace(/\s+/g, " ").slice(0, 30);
@@ -34,6 +37,12 @@ exports.getProfilePage = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     if (req.user?.isGuest) {
+      if (isApiRequest(req)) {
+        return res.status(400).json({
+          success: false,
+          error: "Guest users cannot update profile settings.",
+        });
+      }
       return res.render("profile", {
         user: req.user,
         error: "Guest users cannot update profile settings.",
@@ -77,6 +86,19 @@ exports.updateProfile = async (req, res) => {
 
     await user.save();
 
+    if (isApiRequest(req)) {
+      return res.json({
+        success: true,
+        data: {
+          id: user._id,
+          username: user.username,
+          displayName: user.displayName,
+          settings: user.settings,
+        },
+        message: "Profile settings updated successfully.",
+      });
+    }
+
     return res.render("profile", {
       user,
       error: null,
@@ -84,6 +106,12 @@ exports.updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Profile update error:", error);
+    if (isApiRequest(req)) {
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update profile settings.",
+      });
+    }
     return res.status(500).render("profile", {
       user: req.user,
       error: "Failed to update profile settings.",
@@ -113,6 +141,12 @@ exports.deleteAccount = async (req, res) => {
 
     const confirmation = String(req.body.confirmDelete || "").trim();
     if (confirmation !== "DELETE") {
+      if (isApiRequest(req)) {
+        return res.status(400).json({
+          success: false,
+          error: "To delete your account, type DELETE exactly.",
+        });
+      }
       return res.status(400).render("profile", {
         user,
         error: "To delete your account, type DELETE exactly.",
@@ -126,6 +160,10 @@ exports.deleteAccount = async (req, res) => {
       expires: new Date(Date.now() + 10 * 1000),
       httpOnly: true,
     });
+
+    if (isApiRequest(req)) {
+      return res.json({ success: true, message: "Account deleted" });
+    }
 
     return res.redirect("/auth/login");
   } catch (error) {
