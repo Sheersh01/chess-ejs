@@ -53,12 +53,9 @@ module.exports = (io) => {
     try {
       const cookie = socket.handshake.headers.cookie;
       const authToken = normalizeToken(socket.handshake.auth?.token);
-      const headerToken = normalizeToken(
-        socket.handshake.headers.authorization,
-      );
+      const headerToken = normalizeToken(socket.handshake.headers.authorization);
 
-      const token =
-        getTokenFromCookieHeader(cookie) || authToken || headerToken;
+      const token = getTokenFromCookieHeader(cookie) || authToken || headerToken;
 
       if (!token) {
         console.log("No valid token found");

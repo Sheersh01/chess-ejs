@@ -15,9 +15,7 @@ const isSameUser = (playerA, playerB) =>
   toUserKey(playerA.userId) === toUserKey(playerB.userId);
 
 const removePlayerFromQueue = (socketId) => {
-  const index = matchmakingQueue.findIndex(
-    (player) => player.socketId === socketId,
-  );
+  const index = matchmakingQueue.findIndex((player) => player.socketId === socketId);
   if (index === -1) {
     return false;
   }
@@ -27,9 +25,7 @@ const removePlayerFromQueue = (socketId) => {
 };
 
 const isUserQueued = (userId) =>
-  matchmakingQueue.some(
-    (player) => toUserKey(player.userId) === toUserKey(userId),
-  );
+  matchmakingQueue.some((player) => toUserKey(player.userId) === toUserKey(userId));
 
 const isUserInActiveGame = (userId) => {
   const userKey = toUserKey(userId);
@@ -169,10 +165,7 @@ const findMatch = (newPlayer) => {
 
     // Check if ratings are within acceptable range
     const ratingDiff = Math.abs(waitingPlayer.rating - newPlayer.rating);
-    if (
-      ratingDiff <= RATING_RANGE &&
-      canMatchColors(waitingPlayer, newPlayer)
-    ) {
+    if (ratingDiff <= RATING_RANGE && canMatchColors(waitingPlayer, newPlayer)) {
       // Remove matched player from queue
       matchmakingQueue.splice(i, 1);
       return waitingPlayer;
@@ -338,8 +331,7 @@ module.exports = (io) => {
 
       if (isUserInActiveGame(userId)) {
         socket.emit("matchmakingBlocked", {
-          message:
-            "This account is already playing a game in another tab or window.",
+          message: "This account is already playing a game in another tab or window.",
         });
         return;
       }
@@ -390,8 +382,7 @@ module.exports = (io) => {
 
       if (isUserInActiveGame(userId)) {
         socket.emit("matchmakingBlocked", {
-          message:
-            "This account is already playing a game in another tab or window.",
+          message: "This account is already playing a game in another tab or window.",
         });
         return;
       }
@@ -420,9 +411,7 @@ module.exports = (io) => {
       };
 
       const settings = parseBotSettings(payload);
-      settings.colorPreference = normalizeColorPreference(
-        payload.colorPreference,
-      );
+      settings.colorPreference = normalizeColorPreference(payload.colorPreference);
       startBotGame(io, player, settings);
     });
 

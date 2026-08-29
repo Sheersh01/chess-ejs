@@ -85,10 +85,7 @@ exports.listGames = async (req, res) => {
     };
 
     const [games, total] = await Promise.all([
-      Game.find(filter)
-        .sort({ finishedAt: -1 })
-        .skip(skip)
-        .limit(limit),
+      Game.find(filter).sort({ finishedAt: -1 }).skip(skip).limit(limit),
       Game.countDocuments(filter),
     ]);
 

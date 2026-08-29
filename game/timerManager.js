@@ -4,11 +4,9 @@ const historyManager = require("./historyManager");
 
 const TICK_MS = 200;
 
-const getActiveColor = (game) =>
-  game.chess.turn() === "w" ? "white" : "black";
+const getActiveColor = (game) => (game.chess.turn() === "w" ? "white" : "black");
 
-const getDisplaySeconds = (remainingMs) =>
-  Math.max(0, Math.ceil(remainingMs / 1000));
+const getDisplaySeconds = (remainingMs) => Math.max(0, Math.ceil(remainingMs / 1000));
 
 const ensureTimerState = (game) => {
   if (!game.timerState) {

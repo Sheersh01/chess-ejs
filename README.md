@@ -16,13 +16,13 @@ A production-oriented real-time multiplayer chess platform with ELO matchmaking,
 
 ## Tech Stack
 
-| Layer | Stack |
-|-------|-------|
-| Frontend | EJS, Vanilla JavaScript, CSS |
-| Backend | Node.js, Express, Socket.IO |
-| Data | MongoDB (Mongoose), Redis (Socket.IO adapter) |
-| Chess | chess.js |
-| Ops | Docker, GitHub Actions, Pino |
+| Layer    | Stack                                         |
+| -------- | --------------------------------------------- |
+| Frontend | EJS, Vanilla JavaScript, CSS                  |
+| Backend  | Node.js, Express, Socket.IO                   |
+| Data     | MongoDB (Mongoose), Redis (Socket.IO adapter) |
+| Chess    | chess.js                                      |
+| Ops      | Docker, GitHub Actions, Pino                  |
 
 ## Architecture
 
@@ -78,31 +78,31 @@ docker compose up --build
 
 ## Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm start` | Production server |
-| `npm run dev` | Backend with nodemon |
-| `npm test` | Jest test suite |
-| `npm run lint` | ESLint |
-| `npm run format` | Prettier |
+| Script           | Description          |
+| ---------------- | -------------------- |
+| `npm start`      | Production server    |
+| `npm run dev`    | Backend with nodemon |
+| `npm test`       | Jest test suite      |
+| `npm run lint`   | ESLint               |
+| `npm run format` | Prettier             |
 
 ## API
 
 Base URL: `/api/v1`
 
-| Endpoint | Description |
-|----------|-------------|
-| `POST /auth/register` | Register |
-| `POST /auth/login` | Login |
-| `POST /auth/guest` | Guest session |
-| `POST /auth/logout` | Logout |
-| `GET /users/me` | Current user |
-| `GET /games` | Completed games (paginated) |
-| `GET /games/:id` | Game with PGN |
-| `GET /leaderboard` | Top ratings |
-| `GET /stats` | Platform stats |
-| `GET /health` | Liveness |
-| `GET /ready` | Readiness (MongoDB) |
+| Endpoint              | Description                 |
+| --------------------- | --------------------------- |
+| `POST /auth/register` | Register                    |
+| `POST /auth/login`    | Login                       |
+| `POST /auth/guest`    | Guest session               |
+| `POST /auth/logout`   | Logout                      |
+| `GET /users/me`       | Current user                |
+| `GET /games`          | Completed games (paginated) |
+| `GET /games/:id`      | Game with PGN               |
+| `GET /leaderboard`    | Top ratings                 |
+| `GET /stats`          | Platform stats              |
+| `GET /health`         | Liveness                    |
+| `GET /ready`          | Readiness (MongoDB)         |
 
 Interactive docs: **http://localhost:3000/api/v1/docs**
 
@@ -110,13 +110,13 @@ Interactive docs: **http://localhost:3000/api/v1/docs**
 
 See [.env.example](.env.example). Key variables:
 
-| Variable | Description |
-|----------|-------------|
-| `MONGODB_URI` | MongoDB connection string |
-| `REDIS_URL` | Redis URL for Socket.IO adapter |
-| `JWT_SECRET` | JWT signing secret |
-| `PORT` | HTTP port (default 3000) |
-| `NODE_ENV` | Use `development` locally, `production` when deployed |
+| Variable      | Description                                           |
+| ------------- | ----------------------------------------------------- |
+| `MONGODB_URI` | MongoDB connection string                             |
+| `REDIS_URL`   | Redis URL for Socket.IO adapter                       |
+| `JWT_SECRET`  | JWT signing secret                                    |
+| `PORT`        | HTTP port (default 3000)                              |
+| `NODE_ENV`    | Use `development` locally, `production` when deployed |
 
 ## Deployment
 

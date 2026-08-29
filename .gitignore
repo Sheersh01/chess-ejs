@@ -2,4 +2,5 @@ node_modules
 .env
 explain
 QnA.md
+QnA2.md
 coverage

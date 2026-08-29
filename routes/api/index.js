@@ -10,10 +10,7 @@ const {
   loginValidation,
   profileValidation,
 } = require("../../validators/authValidators");
-const {
-  updateProfile,
-  deleteAccount,
-} = require("../../controllers/profileController");
+const { updateProfile, deleteAccount } = require("../../controllers/profileController");
 
 const router = express.Router();
 
@@ -38,12 +35,7 @@ const router = express.Router();
  *       201:
  *         description: User registered
  */
-router.post(
-  "/auth/register",
-  registerValidation,
-  validate,
-  apiAuthController.register,
-);
+router.post("/auth/register", registerValidation, validate, apiAuthController.register);
 
 /**
  * @openapi

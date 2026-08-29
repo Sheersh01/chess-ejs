@@ -16,17 +16,13 @@ const countdownScreen = document.getElementById("countdown-screen");
 const gameArea = document.getElementById("game-area");
 const playOnlineButton = document.getElementById("play-online-button");
 const playBotButton = document.getElementById("play-bot-button");
-const colorPreferenceSelect = document.getElementById(
-  "color-preference-select",
-);
+const colorPreferenceSelect = document.getElementById("color-preference-select");
 const botDifficultySelect = document.getElementById("bot-difficulty-select");
 const botPersonalitySelect = document.getElementById("bot-personality-select");
 const findingMatchText = document.getElementById("finding-match-text");
 const findingMatchSubtext = document.getElementById("finding-match-subtext");
 const findingMatchStatus = document.getElementById("finding-match-status");
-const cancelMatchmakingButton = document.getElementById(
-  "cancel-matchmaking-button",
-);
+const cancelMatchmakingButton = document.getElementById("cancel-matchmaking-button");
 const countdownNumber = document.getElementById("countdown-number");
 const resignButton = document.getElementById("resign-button");
 const drawOfferButton = document.getElementById("draw-offer-button");
@@ -110,11 +106,7 @@ const shouldBlockNavHref = (href = "") => {
     return false;
   }
 
-  return (
-    href === "/" ||
-    href.startsWith("/profile") ||
-    href.startsWith("/auth/logout")
-  );
+  return href === "/" || href.startsWith("/profile") || href.startsWith("/auth/logout");
 };
 
 const setMatchExitLock = (locked) => {
@@ -379,9 +371,7 @@ const updateMoveHistory = (history = null) => {
       html += `
         <div class="move-pair flex gap-2 py-1 px-2 hover:bg-zinc-700 rounded">
           <span class="move-number text-zinc-400 w-8">${moveNumber}.</span>
-          <span class="white-move text-white w-20">${formatMove(
-            whiteMove,
-          )}</span>
+          <span class="white-move text-white w-20">${formatMove(whiteMove)}</span>
           ${
             blackMove
               ? `<span class="black-move text-zinc-300 w-20">${formatMove(
@@ -401,8 +391,7 @@ const updateMoveHistory = (history = null) => {
   }
 };
 
-const getSelectedColorPreference = () =>
-  colorPreferenceSelect?.value || "random";
+const getSelectedColorPreference = () => colorPreferenceSelect?.value || "random";
 
 const getSelectedColorLabel = () => {
   const selectedColor = getSelectedColorPreference();
@@ -416,8 +405,7 @@ const showMatchmakingScreenForMode = (mode) => {
   currentMatchRequestMode = mode;
 
   if (cancelMatchmakingButton) {
-    cancelMatchmakingButton.style.display =
-      mode === "online" ? "inline-flex" : "none";
+    cancelMatchmakingButton.style.display = mode === "online" ? "inline-flex" : "none";
   }
 
   if (mode === "bot") {
@@ -429,8 +417,7 @@ const showMatchmakingScreenForMode = (mode) => {
   } else {
     findingMatchText.textContent = "Finding a match...";
     findingMatchSubtext.textContent = `Preferred color: ${colorLabel}`;
-    findingMatchStatus.textContent =
-      "Connecting you with a compatible opponent";
+    findingMatchStatus.textContent = "Connecting you with a compatible opponent";
   }
 };
 
@@ -876,10 +863,7 @@ const renderBoard = () => {
 
       if (square) {
         const pieceElement = document.createElement("div");
-        pieceElement.classList.add(
-          "piece",
-          square.color === "w" ? "white" : "black",
-        );
+        pieceElement.classList.add("piece", square.color === "w" ? "white" : "black");
         pieceElement.innerText = getPieceUnicode(square);
         pieceElement.draggable = playerRole === square.color;
 
@@ -908,10 +892,7 @@ const renderBoard = () => {
             // If there's already a selected square and clicking a different piece
             if (
               selectedSquare &&
-              !(
-                selectedSquare.row === rowindex &&
-                selectedSquare.col === colindex
-              )
+              !(selectedSquare.row === rowindex && selectedSquare.col === colindex)
             ) {
               // Try to capture this piece
               const targetSquare = { row: rowindex, col: colindex };
@@ -995,12 +976,8 @@ const handleMove = (sourceSquare, targetSquare) => {
     return;
   }
 
-  const from = `${String.fromCharCode(97 + sourceSquare.col)}${
-    8 - sourceSquare.row
-  }`;
-  const to = `${String.fromCharCode(97 + targetSquare.col)}${
-    8 - targetSquare.row
-  }`;
+  const from = `${String.fromCharCode(97 + sourceSquare.col)}${8 - sourceSquare.row}`;
+  const to = `${String.fromCharCode(97 + targetSquare.col)}${8 - targetSquare.row}`;
 
   // Check if this is a pawn promotion move
   const piece = chess.get(from);
@@ -1221,9 +1198,7 @@ const handlePromotion = (pieceType) => {
 // Show hint dots for possible moves
 const showHints = (square) => {
   clearHints();
-  const squareNotation = `${String.fromCharCode(97 + square.col)}${
-    8 - square.row
-  }`;
+  const squareNotation = `${String.fromCharCode(97 + square.col)}${8 - square.row}`;
   const moves = chess.moves({ square: squareNotation, verbose: true });
 
   moves.forEach((move) => {
@@ -1461,8 +1436,7 @@ const initializeSocketListeners = () => {
     messageElement.innerText = "";
     messageElement.style.display = "none";
 
-    turnDisplayElement.innerText =
-      turn === "w" ? "White's turn" : "Black's turn";
+    turnDisplayElement.innerText = turn === "w" ? "White's turn" : "Black's turn";
     renderTimers();
   });
 
@@ -1532,11 +1506,7 @@ const initializeSocketListeners = () => {
     // Play warning sound when someone has 10 seconds left
     playSound("tenseconds");
     const colorName = data.color === "white" ? "White" : "Black";
-    showNotification(
-      `⚠️ ${colorName} has only 10 seconds left!`,
-      "warning",
-      3000,
-    );
+    showNotification(`⚠️ ${colorName} has only 10 seconds left!`, "warning", 3000);
   });
 
   socket.on("ratingUpdate", (userData) => {
@@ -1553,8 +1523,7 @@ const initializeSocketListeners = () => {
     resetToLandingScreen();
     setChatVisibilityForMode("bot");
     showNotification(
-      data?.message ||
-        "This account is already active in another tab or window.",
+      data?.message || "This account is already active in another tab or window.",
       "warning",
       4000,
     );
@@ -1636,11 +1605,7 @@ const initializeSocketListeners = () => {
     }
 
     // Show success notification
-    showNotification(
-      `${data.color} player has joined the game!`,
-      "success",
-      3000,
-    );
+    showNotification(`${data.color} player has joined the game!`, "success", 3000);
   });
 
   // Draw offer events
@@ -1706,9 +1671,7 @@ const initializeSocketListeners = () => {
         html += `
           <div class="move-pair flex gap-2 py-1 px-2 hover:bg-zinc-700 rounded">
             <span class="move-number text-zinc-400 w-8">${moveNumber}.</span>
-            <span class="white-move text-white w-20">${formatMove(
-              whiteMove,
-            )}</span>
+            <span class="white-move text-white w-20">${formatMove(whiteMove)}</span>
             ${
               blackMove
                 ? `<span class="black-move text-zinc-300 w-20">${formatMove(
@@ -1753,8 +1716,7 @@ const updateCapturedPieces = (capturedPieces) => {
 };
 
 const updateTimerDisplay = (color, seconds) => {
-  const timerElement =
-    color === "white" ? whiteTimerElement : blackTimerElement;
+  const timerElement = color === "white" ? whiteTimerElement : blackTimerElement;
 
   if (!timerElement) {
     return;

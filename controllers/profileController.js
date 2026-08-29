@@ -4,7 +4,6 @@ const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 
 const isApiRequest = (req) => req.originalUrl.includes("/api/");
 
-
 const sanitizeDisplayName = (value) => {
   if (!value) return "";
   return String(value).trim().replace(/\s+/g, " ").slice(0, 30);
@@ -20,8 +19,7 @@ exports.getProfilePage = async (req, res) => {
   if (req.user?.isGuest) {
     return res.render("profile", {
       user: req.user,
-      error:
-        "Guest users cannot save profile settings. Please create an account.",
+      error: "Guest users cannot save profile settings. Please create an account.",
       success: null,
     });
   }

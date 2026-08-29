@@ -12,7 +12,11 @@
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "format:check": "prettier --check \"**/*.{js,json,md}\""
   },
-  "keywords": ["chess", "socket.io", "real-time"],
+  "keywords": [
+    "chess",
+    "socket.io",
+    "real-time"
+  ],
   "author": "",
   "license": "ISC",
   "description": "Real-time multiplayer chess platform",
@@ -53,7 +57,11 @@
       "middleware/**/*.js",
       "!**/node_modules/**"
     ],
-    "testMatch": ["**/tests/**/*.test.js"],
-    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"]
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ]
   }
 }

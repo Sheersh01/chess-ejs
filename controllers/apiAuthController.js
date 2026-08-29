@@ -28,21 +28,24 @@ const cookieOptions = () => {
 
 const sendTokenResponse = (user, statusCode, res) => {
   const token = user.getSignedJwtToken();
-  res.status(statusCode).cookie("token", token, cookieOptions()).json({
-    success: true,
-    data: {
-      id: user._id,
-      username: user.username,
-      displayName: user.displayName || user.username,
-      email: user.email,
-      rating: user.rating,
-      gamesPlayed: user.gamesPlayed,
-      wins: user.wins,
-      losses: user.losses,
-      draws: user.draws,
-      settings: user.settings,
-    },
-  });
+  res
+    .status(statusCode)
+    .cookie("token", token, cookieOptions())
+    .json({
+      success: true,
+      data: {
+        id: user._id,
+        username: user.username,
+        displayName: user.displayName || user.username,
+        email: user.email,
+        rating: user.rating,
+        gamesPlayed: user.gamesPlayed,
+        wins: user.wins,
+        losses: user.losses,
+        draws: user.draws,
+        settings: user.settings,
+      },
+    });
 };
 
 exports.register = async (req, res) => {

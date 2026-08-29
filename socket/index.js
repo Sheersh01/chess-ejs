@@ -14,10 +14,17 @@ module.exports = async function initSocket(server) {
   if (process.env.REDIS_URL) {
     try {
       const pubClient = await getRedisClient();
-      const subClient = pubClient.duplicate();
-      await subClient.connect();
-      io.adapter(createAdapter(pubClient, subClient));
-      logger.info("Socket.IO Redis adapter enabled");
+      if (!pubClient) {
+        logger.info("Using in-memory Socket.IO adapter (Redis not available)");
+      } else {
+        const subClient = pubClient.duplicate();
+        subClient.on("error", () => {
+          // Errors are handled on the primary client.
+        });
+        await subClient.connect();
+        io.adapter(createAdapter(pubClient, subClient));
+        logger.info("Socket.IO Redis adapter enabled");
+      }
     } catch (error) {
       logger.warn({ err: error }, "Redis adapter unavailable, using in-memory adapter");
     }

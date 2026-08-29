@@ -280,10 +280,7 @@ const getBotMove = (chess, options = {}) => {
   }
 
   scored.sort((a, b) => b.value - a.value);
-  const topPool = scored.slice(
-    0,
-    Math.min(config.topChoicePool, scored.length),
-  );
+  const topPool = scored.slice(0, Math.min(config.topChoicePool, scored.length));
   return pickRandom(topPool).move;
 };
 

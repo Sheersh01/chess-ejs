@@ -3,20 +3,14 @@ const timerManager = require("../game/timerManager");
 const ratingManager = require("../game/ratingManager");
 const historyManager = require("../game/historyManager");
 const botManager = require("../game/botManager");
-const {
-  updateGameRecord,
-  finalizeGameRecord,
-} = require("../services/gamePersistence");
+const { updateGameRecord, finalizeGameRecord } = require("../services/gamePersistence");
 const { stats } = require("../stats/gameStats");
 const { pieceValues } = require("../game/constants");
 const logger = require("../config/logger");
 
 // Helper function to calculate captured pieces value
 const calculateScore = (capturedPieces) => {
-  return capturedPieces.reduce(
-    (sum, piece) => sum + (pieceValues[piece] || 0),
-    0,
-  );
+  return capturedPieces.reduce((sum, piece) => sum + (pieceValues[piece] || 0), 0);
 };
 
 const isSocketPlayer = (playerId) =>

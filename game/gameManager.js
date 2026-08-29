@@ -9,9 +9,7 @@ const isSocketPlayer = (playerId) =>
   typeof playerId === "string" && !playerId.startsWith("bot_");
 
 const isHumanUserId = (userId) =>
-  typeof userId === "string" &&
-  userId !== "bot_engine" &&
-  !userId.startsWith("bot_");
+  typeof userId === "string" && userId !== "bot_engine" && !userId.startsWith("bot_");
 
 const generateGameId = () =>
   `game_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -155,8 +153,10 @@ const getActivePlayerCount = () => {
   const uniqueUsers = new Set();
   for (const game of games.values()) {
     if (!game.isFinished) {
-      if (isHumanUserId(game.userIds.white)) uniqueUsers.add(String(game.userIds.white));
-      if (isHumanUserId(game.userIds.black)) uniqueUsers.add(String(game.userIds.black));
+      if (isHumanUserId(game.userIds.white))
+        uniqueUsers.add(String(game.userIds.white));
+      if (isHumanUserId(game.userIds.black))
+        uniqueUsers.add(String(game.userIds.black));
     }
   }
   return uniqueUsers.size;

@@ -168,8 +168,7 @@ userSchema.virtual("winRate").get(function () {
 // Update rating based on game result
 userSchema.methods.updateRating = function (opponentRating, result) {
   const K = 32; // K-factor for ELO rating
-  const expectedScore =
-    1 / (1 + Math.pow(10, (opponentRating - this.rating) / 400));
+  const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - this.rating) / 400));
 
   let actualScore;
   if (result === "win") {
