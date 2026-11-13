@@ -3,6 +3,7 @@ const { protect } = require("../middleware/auth");
 const { validateForm } = require("../middleware/validate");
 const { changePasswordValidation } = require("../validators/authValidators");
 const profileController = require("../controllers/profileController");
+const pageController = require("../controllers/pageController");
 const gameStats = require("../stats/gameStats");
 const gameManager = require("../game/gameManager");
 
@@ -11,6 +12,10 @@ const router = express.Router();
 router.get("/", protect, (req, res) => {
   res.render("index", { user: req.user });
 });
+
+router.get("/leaderboard", protect, pageController.leaderboard);
+router.get("/games", protect, pageController.gamesList);
+router.get("/games/:id", protect, pageController.replay);
 
 router.get("/profile", protect, profileController.getProfilePage);
 router.post("/profile", protect, profileController.updateProfile);

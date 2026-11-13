@@ -19,6 +19,10 @@ with OpenAPI docs, Docker and CI.
 - Game records in MongoDB with PGN, clocks and rating changes
 - Security: CSP, SameSite cookies + Origin-check CSRF defence, restricted Socket.IO origins,
   HTTP and per-socket-event rate limits, credential redaction in logs
+- UI: SVG pieces, last-move / check / premove highlights, drag or click to move, premoves,
+  keyboard play (arrow keys + Enter), draw offers with withdraw, result dialog with rating
+  change, leaderboard, game history with move-by-move replay, light/dark theme and sound
+  settings, live screen-reader announcements
 
 ## Tech Stack
 
@@ -55,7 +59,15 @@ flowchart TB
   Lifecycle --> Bots
 ```
 
-### Scaling model (read this before deploying)
+#### Frontend
+
+Server-rendered EJS pages plus native ES modules (no build step) in
+`public/javascripts/app/`: `chess/` (board, clock, move list), `ui/` (modal, toast,
+sounds, theme, settings) and `pages/` (one entry per page). The browser uses the same
+chess.js build as the server, served from `/vendor/chess.js/`. Piece images are the
+Cburnett set, used under the BSD license (see `public/images/pieces/LICENSE.md`).
+
+## Scaling model (read this before deploying)
 
 Live games, clocks and the matchmaking queue live **in the memory of one Node process**, so the
 app is designed to run as a **single instance**. That keeps moves fast and the code simple.

@@ -9,6 +9,7 @@ const LIMITS = {
   offerDraw: { capacity: 3, perSecond: 0.3 },
   acceptDraw: { capacity: 3, perSecond: 0.3 },
   declineDraw: { capacity: 3, perSecond: 0.3 },
+  withdrawDraw: { capacity: 3, perSecond: 0.3 },
   resign: { capacity: 3, perSecond: 0.3 },
 };
 const DEFAULT_LIMIT = { capacity: 20, perSecond: 5 };

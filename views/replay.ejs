@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <%- include('partials/head', { title: 'Game Review' }) %>
+  </head>
+  <body
+    style="--board-light:<%= user?.settings?.boardLight || '#f0d9b5' %>; --board-dark:<%= user?.settings?.boardDark || '#b58863' %>; --hint-color:<%= user?.settings?.hintColor || '#14551e' %>;"
+  >
+    <div class="page-grid"></div>
+    <%- include('partials/small-device') %>
+
+    <div id="desktop-app" class="page-shell">
+      <%- include('partials/topbar', { user, active: 'games' }) %>
+
+      <main id="main-content" class="page-wrap" tabindex="-1">
+        <div class="container">
+          <header class="page-header page-header-row">
+            <div>
+              <span class="eyebrow">Game review</span>
+              <h1 class="headline">
+                <%= game.whiteUsername %> <span class="muted">vs</span> <%= game.blackUsername %>
+              </h1>
+              <p>
+                <span class="result-pill result-<%= outcome.tone %>"><%= outcome.label %></span>
+                <%= game.reason || '' %>
+                · <%= game.mode === 'bot' ? 'Bot game' : 'Online' %>
+                · <%= game.timeControl %>
+                · <%= game.rated ? 'Rated' : 'Unrated' %>
+                <% if (game.finishedAt) { %>· <time datetime="<%= new Date(game.finishedAt).toISOString() %>"><%= new Date(game.finishedAt).toLocaleString() %></time><% } %>
+              </p>
+            </div>
+            <a class="btn btn-ghost" href="/games">← All games</a>
+          </header>
+
+          <div class="replay-layout" id="replay" data-replay="<%= replayData %>">
+            <section class="board-panel panel-card" aria-label="Board">
+              <div class="replay-players">
+                <div class="replay-player" id="replay-top"></div>
+              </div>
+              <div class="board-frame">
+                <div id="board"></div>
+              </div>
+              <div class="replay-players">
+                <div class="replay-player" id="replay-bottom"></div>
+              </div>
+
+              <div class="replay-controls" role="toolbar" aria-label="Replay controls">
+                <button type="button" class="btn btn-ghost btn-small" data-step="start" aria-label="First move">⏮</button>
+                <button type="button" class="btn btn-ghost btn-small" data-step="prev" aria-label="Previous move">◀</button>
+                <span id="replay-position" class="replay-position" aria-live="polite">Start</span>
+                <button type="button" class="btn btn-ghost btn-small" data-step="next" aria-label="Next move">▶</button>
+                <button type="button" class="btn btn-ghost btn-small" data-step="end" aria-label="Last move">⏭</button>
+                <button type="button" class="btn btn-ghost btn-small" id="replay-flip" aria-label="Flip board">⇅</button>
+              </div>
+              <p class="board-hint">Use ← and → (Home / End) to step through the game.</p>
+            </section>
+
+            <aside class="move-history-container panel-card" aria-label="Moves">
+              <div class="move-history-heading">
+                <h3>Moves</h3>
+              </div>
+              <div id="move-history" class="move-history move-history-tall"></div>
+              <details class="pgn-details">
+                <summary>PGN</summary>
+                <textarea class="field-text pgn-text" readonly rows="6" aria-label="PGN"><%= game.pgn %></textarea>
+              </details>
+            </aside>
+          </div>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/javascripts/app/pages/replay.js"></script>
+  </body>
+</html>

@@ -1,21 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login - Chess Game</title>
-    <link rel="icon" href="/images/favicon.png" />
-    <link rel="stylesheet" href="/stylesheets/style.css" />
+    <%- include('partials/head', { title: 'Sign in' }) %>
   </head>
   <body>
     <div class="page-grid"></div>
-    <div id="small-device-screen" style="display: none">
-      <div class="small-device-content">
-        <h1>Desktop Screen Required</h1>
-        <p>This chess experience is built for larger screens.</p>
-        <p>Please open it on a laptop or desktop for the full match view.</p>
-      </div>
-    </div>
+    <%- include('partials/small-device') %>
 
     <main id="desktop-app" class="page-shell">
       <div class="container split-layout">

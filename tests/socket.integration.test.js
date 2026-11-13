@@ -150,6 +150,48 @@ describe("game flow over sockets", () => {
   });
 });
 
+describe("game metadata and draw offers", () => {
+  test("players receive gameInfo with names, ratings and time control", async () => {
+    const a = await server.connect(guestToken(), { listen: ["gameInfo"] });
+    const b = await server.connect(guestToken(), { listen: ["gameInfo"] });
+    const { white } = await startMatch(a, b, { timeControl: "3+2" });
+
+    const info = white.recorded.gameInfo[0];
+    expect(info).toMatchObject({ mode: "online", rated: false, timeControl: "3+2" });
+    expect(info.players.white.name).toMatch(/^Guest/);
+    expect(info.players.black.rating).toBe(1200);
+    white.emit("resign");
+  });
+
+  test("an offer can be withdrawn and then cannot be accepted", async () => {
+    const a = await server.connect(guestToken());
+    const b = await server.connect(guestToken());
+    const { white, black } = await startMatch(a, b);
+    const overs = record(black, "gameOver");
+
+    const offered = waitFor(black, "drawOfferState", {
+      filter: (s) => s.by === "white",
+    });
+    white.emit("offerDraw");
+    await offered;
+
+    const withdrawn = waitFor(black, "drawOfferState", {
+      filter: (s) => s.by === null,
+    });
+    const notice = waitFor(black, "drawOfferWithdrawn");
+    white.emit("withdrawDraw");
+    await Promise.all([withdrawn, notice]);
+
+    black.emit("acceptDraw");
+    await sleep(250);
+    expect(overs).toHaveLength(0);
+
+    const over = waitFor(black, "gameOver");
+    white.emit("resign");
+    expect((await over).gameId).toMatch(/^game_/);
+  });
+});
+
 describe("disconnects", () => {
   test("a second tab cannot take over a live game; a real reconnect resumes it", async () => {
     const tokenOfWhite = guestToken();

@@ -138,6 +138,7 @@ const recordResult = async (game, result, reason, io) => {
       summary[color] = { before, after, delta };
 
       const entry = {
+        gameId: game.id,
         opponent: String(opponentName(game, color)).slice(0, 40),
         mode: game.isBotGame ? "bot" : "online",
         color,

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <%- include('partials/head', { title: 'Leaderboard' }) %>
+  </head>
+  <body>
+    <div class="page-grid"></div>
+    <%- include('partials/small-device') %>
+
+    <div id="desktop-app" class="page-shell">
+      <%- include('partials/topbar', { user, active: 'leaderboard' }) %>
+
+      <main id="main-content" class="page-wrap" tabindex="-1">
+        <div class="container">
+          <header class="page-header">
+            <span class="eyebrow">Rankings</span>
+            <h1 class="headline">Leaderboard</h1>
+            <p>Top rated players. Only rated games between registered players count.</p>
+            <% if (myRank) { %>
+            <p class="page-header-note">Your rank: <strong>#<%= myRank %></strong></p>
+            <% } %>
+          </header>
+
+          <section class="panel-card table-card">
+            <% if (unavailable) { %>
+            <div class="empty-state">
+              <strong>Leaderboard unavailable</strong>
+              <span>The database is offline right now. Try again later.</span>
+            </div>
+            <% } else if (players.length === 0) { %>
+            <div class="empty-state">
+              <strong>No ranked players yet</strong>
+              <span>Finish a rated game against another registered player to appear here.</span>
+            </div>
+            <% } else { %>
+            <table class="data-table">
+              <caption class="sr-only">Top players by rating</caption>
+              <thead>
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">Player</th>
+                  <th scope="col" class="num">Rating</th>
+                  <th scope="col" class="num">Games</th>
+                  <th scope="col" class="num">W / L / D</th>
+                  <th scope="col" class="num">Win rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% players.forEach((player, index) => {
+                  const isMe = !user.isGuest && String(player._id) === String(user._id);
+                  const winRate = player.gamesPlayed ? Math.round((player.wins / player.gamesPlayed) * 100) : 0;
+                %>
+                <tr class="<%= isMe ? 'is-me' : '' %>" <%- isMe ? 'aria-current="true"' : '' %>>
+                  <td class="rank rank-<%= index + 1 %>"><%= index + 1 %></td>
+                  <td>
+                    <strong><%= player.displayName || player.username %></strong>
+                    <% if (player.displayName) { %><span class="muted">@<%= player.username %></span><% } %>
+                    <% if (isMe) { %><span class="tag">You</span><% } %>
+                  </td>
+                  <td class="num"><strong><%= player.rating %></strong></td>
+                  <td class="num"><%= player.gamesPlayed %></td>
+                  <td class="num"><%= player.wins %> / <%= player.losses %> / <%= player.draws %></td>
+                  <td class="num"><%= winRate %>%</td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+            <% } %>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/javascripts/app/pages/basic.js"></script>
+  </body>
+</html>

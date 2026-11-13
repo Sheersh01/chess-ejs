@@ -118,6 +118,16 @@ describe("API hardening", () => {
     expect(res.status).toBe(403);
   });
 
+  test("an opaque (null) origin is rejected", async () => {
+    const res = await request(app).post("/api/v1/auth/guest").set("Origin", "null");
+    expect(res.status).toBe(403);
+  });
+
+  test("referrer policy lets browsers send a real Origin on same-site posts", async () => {
+    const res = await request(app).get("/auth/login");
+    expect(res.headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  });
+
   test("same-origin requests are allowed", async () => {
     const res = await request(app)
       .post("/api/v1/auth/guest")
@@ -134,5 +144,68 @@ describe("API hardening", () => {
   test("responses carry a Content-Security-Policy", async () => {
     const res = await request(app).get("/auth/login");
     expect(res.headers["content-security-policy"]).toMatch(/default-src 'self'/);
+  });
+});
+
+describe("pages", () => {
+  const registered = async () => {
+    const id = unique();
+    const res = await request(app)
+      .post("/api/v1/auth/register")
+      .send({
+        username: `pg_${id}`.slice(0, 20),
+        email: `pg_${id}@example.com`,
+        password: "password123",
+      });
+    return { cookie: `token=${res.body.token}`, id: res.body.data.id };
+  };
+
+  test("leaderboard, games and profile pages render for a signed-in user", async () => {
+    const { cookie } = await registered();
+    for (const path of ["/leaderboard", "/games", "/profile", "/"]) {
+      const res = await request(app).get(path).set("Cookie", cookie);
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('id="main-content"');
+    }
+  });
+
+  test("game review is limited to the game's players", async () => {
+    const Game = require("../models/Game");
+    const owner = await registered();
+    const stranger = await registered();
+    const gameId = `game_test_${unique()}`;
+    await Game.create({
+      gameId,
+      whiteUserId: owner.id,
+      blackUserId: "guest_x",
+      whiteUsername: "Owner",
+      blackUsername: "Guest",
+      status: "completed",
+      result: "white",
+      pgn: "1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7#",
+    });
+
+    const mine = await request(app).get(`/games/${gameId}`).set("Cookie", owner.cookie);
+    expect(mine.status).toBe(200);
+    expect(mine.text).toContain("data-replay");
+
+    const theirs = await request(app)
+      .get(`/games/${gameId}`)
+      .set("Cookie", stranger.cookie);
+    expect(theirs.status).toBe(403);
+
+    const missing = await request(app).get("/games/nope").set("Cookie", owner.cookie);
+    expect(missing.status).toBe(404);
+  });
+
+  test("the browser gets the same chess.js build as the server", async () => {
+    const res = await request(app).get("/vendor/chess.js/chess.js");
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("export class Chess");
+  });
+
+  test("pages load no third-party scripts", async () => {
+    const res = await request(app).get("/auth/login");
+    expect(res.headers["content-security-policy"]).toMatch(/script-src 'self';/);
   });
 });

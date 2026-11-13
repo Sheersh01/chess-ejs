@@ -1,4 +1,9 @@
 // Profile page behaviour (kept out of the HTML so the CSP can forbid inline scripts).
+import { initShell } from "../ui/shell.js";
+import { confirmDialog } from "../ui/modal.js";
+
+initShell();
+
 const syncColor = (colorId, textId) => {
   const colorInput = document.getElementById(colorId);
   const textInput = document.getElementById(textId);
@@ -67,12 +72,19 @@ if (profileSettingsForm && saveSettingsButton) {
 }
 
 const deleteAccountForm = document.getElementById("delete-account-form");
-deleteAccountForm?.addEventListener("submit", (event) => {
-  const confirmed = confirm(
-    "Are you sure you want to permanently delete your account? This cannot be undone.",
-  );
-
-  if (!confirmed) {
-    event.preventDefault();
+let deleteConfirmed = false;
+deleteAccountForm?.addEventListener("submit", async (event) => {
+  if (deleteConfirmed) return;
+  event.preventDefault();
+  const confirmed = await confirmDialog({
+    title: "Delete your account?",
+    message:
+      "Your profile, rating and game history will be permanently deleted. This cannot be undone.",
+    confirmLabel: "Delete account",
+    variant: "danger",
+  });
+  if (confirmed) {
+    deleteConfirmed = true;
+    deleteAccountForm.requestSubmit();
   }
 });

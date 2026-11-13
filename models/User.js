@@ -94,6 +94,9 @@ const userSchema = new mongoose.Schema(
     },
     gameHistory: [
       {
+        gameId: {
+          type: String,
+        },
         opponent: {
           type: String,
           required: true,

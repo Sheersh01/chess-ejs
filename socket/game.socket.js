@@ -1,6 +1,12 @@
 const gameManager = require("../game/gameManager");
 const timerManager = require("../game/timerManager");
-const { endGame, capitalize, opposite } = require("../game/gameLifecycle");
+const {
+  endGame,
+  capitalize,
+  opposite,
+  buildGameInfo,
+  emitDrawOfferState,
+} = require("../game/gameLifecycle");
 const { parseMoveInput, playMove } = require("../game/moveService");
 const { stats } = require("../stats/gameStats");
 const logger = require("../config/logger");
@@ -32,6 +38,7 @@ const opponentSocketId = (game, color) => {
 
 const syncReconnectingPlayer = (socket, game, color, io) => {
   socket.emit("playerRole", color === "white" ? "w" : "b");
+  socket.emit("gameInfo", buildGameInfo(game));
   if (game.status === "countdown") {
     socket.emit("startCountdown");
     return;
@@ -43,6 +50,7 @@ const syncReconnectingPlayer = (socket, game, color, io) => {
   socket.emit("capturedPiecesUpdate", game.capturedPieces);
   socket.emit("scoreUpdate", game.scores);
   timerManager.emitUpdate(game, io, socket);
+  socket.emit("drawOfferState", { by: game.drawOffer?.by || null });
 
   if (game.drawOffer && game.drawOffer.by !== color) {
     socket.emit("drawOffered", {
@@ -190,6 +198,7 @@ module.exports = (io) => {
 
       game.drawOffer = { by: color };
       game.lastDrawOfferPly[color] = ply;
+      emitDrawOfferState(game, io);
 
       const opponent = opponentSocketId(game, color);
       if (opponent) {
@@ -233,11 +242,29 @@ module.exports = (io) => {
 
       const offeredBy = game.drawOffer.by;
       game.drawOffer = null;
+      emitDrawOfferState(game, io);
       const offerer = game.players[offeredBy];
       if (gameManager.isSocketPlayer(offerer)) {
         io.to(offerer).emit("drawDeclined", {
           color: color.charAt(0),
           message: "Draw offer declined",
+        });
+      }
+    });
+
+    // The offering player takes their pending offer back.
+    socket.on("withdrawDraw", () => {
+      const ctx = getPlayerContext(socket);
+      if (!ctx) return;
+      const { game, color } = ctx;
+      if (!game.drawOffer || game.drawOffer.by !== color) return;
+
+      game.drawOffer = null;
+      emitDrawOfferState(game, io);
+      const opponent = opponentSocketId(game, color);
+      if (opponent) {
+        io.to(opponent).emit("drawOfferWithdrawn", {
+          message: `${capitalize(color)} withdrew the draw offer`,
         });
       }
     });

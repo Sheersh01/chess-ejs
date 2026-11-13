@@ -1,24 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Profile Settings - Chess Game</title>
-    <link rel="icon" href="/images/favicon.png" />
-    <link rel="stylesheet" href="/stylesheets/style.css" />
+    <%- include('partials/head', { title: 'Profile' }) %>
   </head>
   <body>
     <div class="page-grid"></div>
-    <div id="small-device-screen" style="display: none">
-      <div class="small-device-content">
-        <h1>Desktop Screen Required</h1>
-        <p>This chess experience is built for larger screens.</p>
-        <p>Please open it on a laptop or desktop for the full match view.</p>
-      </div>
-    </div>
+    <%- include('partials/small-device') %>
 
-    <main id="desktop-app" class="page-shell">
-      <div class="profile-wrap">
+    <div id="desktop-app" class="page-shell">
+      <%- include('partials/topbar', { user, active: 'profile' }) %>
+      <main id="main-content" class="profile-wrap" tabindex="-1">
         <div class="container">
           <div class="profile-header">
             <div>
@@ -29,17 +20,14 @@
                 the atmosphere before you jump back into a game.
               </p>
             </div>
-            <div style="display: flex; gap: 12px; flex-wrap: wrap">
-              <a href="/" class="btn btn-ghost">Home</a>
-            </div>
           </div>
 
           <% if (error) { %>
-          <div class="flash flash-error" style="margin-bottom: 18px"><%= error %></div>
+          <div class="flash flash-error" role="alert" style="margin-bottom: 18px"><%= error %></div>
           <% } %>
 
           <% if (success) { %>
-          <div class="flash flash-success" style="margin-bottom: 18px"><%= success %></div>
+          <div class="flash flash-success" role="status" style="margin-bottom: 18px"><%= success %></div>
           <% } %>
 
           <form id="profile-settings-form" action="/profile" method="POST" class="profile-panel panel-card">
@@ -282,7 +270,12 @@
                     <span class="history-color"><%= game.color === 'white' ? 'White' : 'Black' %></span>
                   </div>
 
-                  <h3>vs <%= game.opponent %></h3>
+                  <h3>
+                    vs <%= game.opponent %>
+                    <% if (game.gameId) { %>
+                    <a class="history-link" href="/games/<%= encodeURIComponent(game.gameId) %>">Review</a>
+                    <% } %>
+                  </h3>
                   <p><%= game.reason || 'Completed game' %></p>
                 </div>
 
@@ -314,9 +307,9 @@
             <% } %>
           </section>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
 
-    <script src="/javascripts/profile.js"></script>
+    <script type="module" src="/javascripts/app/pages/profile.js"></script>
   </body>
 </html>

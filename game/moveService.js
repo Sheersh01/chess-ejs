@@ -1,7 +1,7 @@
 const timerManager = require("./timerManager");
 const botManager = require("./botManager");
 const { pieceValues } = require("./constants");
-const { endGame, resolveBoardResult } = require("./gameLifecycle");
+const { endGame, resolveBoardResult, emitDrawOfferState } = require("./gameLifecycle");
 const { updateGameRecord } = require("../services/gamePersistence");
 const logger = require("../config/logger");
 
@@ -67,6 +67,7 @@ const playMove = async (game, io, moveInput, { excludeSocketId = null } = {}) =>
   // Moving instead of answering a pending offer declines it.
   if (game.drawOffer && game.drawOffer.by !== moverColor) {
     game.drawOffer = null;
+    emitDrawOfferState(game, io);
   }
 
   const room = excludeSocketId

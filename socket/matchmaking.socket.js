@@ -1,6 +1,6 @@
 const gameManager = require("../game/gameManager");
 const botManager = require("../game/botManager");
-const { startGameClock } = require("../game/gameLifecycle");
+const { startGameClock, buildGameInfo } = require("../game/gameLifecycle");
 const { scheduleBotMove } = require("../game/moveService");
 const { normalizeTimeControl } = require("../game/timeControls");
 const { MatchmakingQueue } = require("../game/matchmakingQueue");
@@ -80,6 +80,7 @@ const blockedReason = (socket, userId) => {
 
 /** Countdown, then persist the record and start the clock (and the bot, if any). */
 const runCountdown = (io, game, room) => {
+  io.to(room).emit("gameInfo", buildGameInfo(game));
   io.to(room).emit("startCountdown");
   let countdown = COUNTDOWN_SECONDS;
 

@@ -48,6 +48,33 @@ const timeoutResult = (game, flaggedColor) => {
   return { result: winner, reason: `${capitalize(flaggedColor)} ran out of time` };
 };
 
+const playerInfo = (game, color) => {
+  const meta = game.playerMeta?.[color] || {};
+  const isBot = gameManager.isBotId(String(game.userIds[color]));
+  return {
+    name: meta.displayName || meta.username || capitalize(color),
+    rating: isBot ? null : (game.initialRatings?.[color] ?? null),
+    isBot,
+  };
+};
+
+/** Static facts about a game the client shows next to the board. */
+const buildGameInfo = (game) => ({
+  gameId: game.id,
+  mode: game.isBotGame ? "bot" : "online",
+  rated: Boolean(game.rated),
+  timeControl: game.clock.timeControl,
+  players: { white: playerInfo(game, "white"), black: playerInfo(game, "black") },
+  bot: game.bot
+    ? { difficulty: game.bot.difficulty, personality: game.bot.personality }
+    : null,
+});
+
+/** Broadcast who (if anyone) has a pending draw offer. */
+const emitDrawOfferState = (game, io) => {
+  io.to(game.id).emit("drawOfferState", { by: game.drawOffer?.by || null });
+};
+
 const updateStats = (result, reason) => {
   if (!result) return;
   stats.completedGames++;
@@ -82,6 +109,8 @@ const endGame = async (
   }
   timerManager.emitUpdate(game, io);
   io.to(game.id).emit("gameOver", {
+    gameId: game.id,
+    rated: Boolean(game.rated),
     result: result || null,
     reason,
     status,
@@ -151,6 +180,8 @@ module.exports = {
   opposite,
   resolveBoardResult,
   timeoutResult,
+  buildGameInfo,
+  emitDrawOfferState,
   endGame,
   handleFlag,
   startGameClock,

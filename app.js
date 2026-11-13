@@ -12,7 +12,7 @@ const { notFound, errorHandler } = require("./middleware/errorHandler");
 const contentSecurityPolicy = {
   directives: {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"],
+    scriptSrc: ["'self'"],
     scriptSrcAttr: ["'none'"],
     styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
@@ -33,7 +33,14 @@ const createApp = () => {
   // Behind a single reverse proxy (Railway/Docker ingress): trust it for client IPs.
   if (isProduction()) app.set("trust proxy", 1);
 
-  app.use(helmet({ contentSecurityPolicy }));
+  app.use(
+    helmet({
+      contentSecurityPolicy,
+      // Helmet's default "no-referrer" makes browsers send `Origin: null` on
+      // same-origin form posts, which the CSRF origin check must reject.
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    }),
+  );
   app.use(pinoHttp({ logger, autoLogging: process.env.NODE_ENV !== "test" }));
   app.use(express.json({ limit: "20kb" }));
   app.use(express.urlencoded({ extended: true, limit: "20kb" }));
@@ -63,6 +70,13 @@ const createApp = () => {
   app.use("/api/", apiLimiter);
 
   app.use(express.static(path.join(__dirname, "public")));
+  // Same chess.js build the server uses, as an ES module for the browser.
+  app.use(
+    "/vendor/chess.js",
+    express.static(path.join(__dirname, "node_modules/chess.js/dist/esm"), {
+      maxAge: "7d",
+    }),
+  );
 
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "views"));
