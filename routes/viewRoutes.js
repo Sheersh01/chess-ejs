@@ -1,21 +1,27 @@
 const express = require("express");
-const router = express.Router();
 const { protect } = require("../middleware/auth");
-const {
-  getProfilePage,
-  updateProfile,
-  deleteAccount,
-} = require("../controllers/profileController");
+const { validateForm } = require("../middleware/validate");
+const { changePasswordValidation } = require("../validators/authValidators");
+const profileController = require("../controllers/profileController");
 const gameStats = require("../stats/gameStats");
 const gameManager = require("../game/gameManager");
+
+const router = express.Router();
 
 router.get("/", protect, (req, res) => {
   res.render("index", { user: req.user });
 });
 
-router.get("/profile", protect, getProfilePage);
-router.post("/profile", protect, updateProfile);
-router.post("/profile/delete", protect, deleteAccount);
+router.get("/profile", protect, profileController.getProfilePage);
+router.post("/profile", protect, profileController.updateProfile);
+router.post(
+  "/profile/password",
+  protect,
+  changePasswordValidation,
+  validateForm("profile", [], (req) => ({ user: req.user, success: null })),
+  profileController.changePassword,
+);
+router.post("/profile/delete", protect, profileController.deleteAccount);
 
 router.get("/stats", (req, res) => {
   res.json(

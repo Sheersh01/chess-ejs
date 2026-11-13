@@ -1,3 +1,4 @@
+# Local development stack. The app runs as a single instance (game state is in memory).
 services:
   app:
     build: .
@@ -7,27 +8,40 @@ services:
       PORT: 3000
       MONGODB_URI: mongodb://mongo:27017/chess
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: dev_jwt_secret_change_in_production
+      JWT_SECRET: dev_only_jwt_secret_change_me_in_production_please
       JWT_EXPIRE: 7d
       JWT_COOKIE_EXPIRE: 7
+      # The image defaults to production; compose runs it over plain HTTP locally.
       NODE_ENV: development
     depends_on:
-      - mongo
-      - redis
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   mongo:
     image: mongo:7
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
 volumes:

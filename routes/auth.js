@@ -1,29 +1,26 @@
 const express = require("express");
+const authController = require("../controllers/authController");
+const { validateForm } = require("../middleware/validate");
+const { registerValidation, loginValidation } = require("../validators/authValidators");
+
 const router = express.Router();
-const {
-  register,
-  login,
-  logout,
-  getMe,
-  guestLogin,
-} = require("../controllers/authController");
-const { protect } = require("../middleware/auth");
 
-// Render login page
-router.get("/login", (req, res) => {
-  res.render("login", { error: null, email: "" });
-});
+router.get("/login", authController.showLogin);
+router.get("/register", authController.showRegister);
 
-// Render register page
-router.get("/register", (req, res) => {
-  res.render("register", { error: null, username: "", email: "" });
-});
-
-// Auth routes
-router.post("/register", register);
-router.post("/login", login);
-router.post("/guest", guestLogin);
-router.get("/logout", logout);
-router.get("/me", protect, getMe);
+router.post(
+  "/register",
+  registerValidation,
+  validateForm("register", ["username", "email"]),
+  authController.register,
+);
+router.post(
+  "/login",
+  loginValidation,
+  validateForm("login", ["email"]),
+  authController.login,
+);
+router.post("/guest", authController.guestLogin);
+router.post("/logout", authController.logout);
 
 module.exports = router;

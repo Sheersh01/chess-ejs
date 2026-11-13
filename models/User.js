@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 
 const userSchema = new mongoose.Schema(
   {
@@ -11,22 +10,31 @@ const userSchema = new mongoose.Schema(
       trim: true,
       minlength: [3, "Username must be at least 3 characters"],
       maxlength: [20, "Username cannot exceed 20 characters"],
+      match: [
+        /^[A-Za-z0-9_-]+$/,
+        "Username may only contain letters, numbers, underscores and hyphens",
+      ],
     },
     email: {
       type: String,
       required: [true, "Please provide an email"],
       unique: true,
       lowercase: true,
-      match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-        "Please provide a valid email",
-      ],
+      trim: true,
     },
     password: {
       type: String,
       required: [true, "Please provide a password"],
       minlength: [6, "Password must be at least 6 characters"],
       select: false,
+    },
+    // Incremented on password change; tokens carrying an older version are rejected.
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+    passwordChangedAt: {
+      type: Date,
     },
     displayName: {
       type: String,
@@ -117,6 +125,10 @@ const userSchema = new mongoose.Schema(
           default: 0,
           min: 0,
         },
+        rated: {
+          type: Boolean,
+          default: true,
+        },
         ratingBefore: {
           type: Number,
           min: 0,
@@ -152,52 +164,12 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Generate JWT token
-userSchema.methods.getSignedJwtToken = function () {
-  return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE,
-  });
-};
-
 // Calculate win rate
 userSchema.virtual("winRate").get(function () {
   if (this.gamesPlayed === 0) return 0;
   return ((this.wins / this.gamesPlayed) * 100).toFixed(2);
 });
 
-// Update rating based on game result
-userSchema.methods.updateRating = function (opponentRating, result) {
-  const K = 32; // K-factor for ELO rating
-  const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - this.rating) / 400));
-
-  let actualScore;
-  if (result === "win") {
-    actualScore = 1;
-    this.wins += 1;
-    this.winStreak += 1;
-    if (this.winStreak > this.bestWinStreak) {
-      this.bestWinStreak = this.winStreak;
-    }
-  } else if (result === "loss") {
-    actualScore = 0;
-    this.losses += 1;
-    this.winStreak = 0;
-  } else {
-    actualScore = 0.5;
-    this.draws += 1;
-    this.winStreak = 0;
-  }
-
-  this.rating = Math.round(this.rating + K * (actualScore - expectedScore));
-  this.gamesPlayed += 1;
-  this.lastActive = Date.now();
-};
-
-userSchema.methods.addGameHistoryEntry = function (entry) {
-  this.gameHistory.unshift(entry);
-  if (this.gameHistory.length > 20) {
-    this.gameHistory = this.gameHistory.slice(0, 20);
-  }
-};
+userSchema.index({ rating: -1 });
 
 module.exports = mongoose.model("User", userSchema);

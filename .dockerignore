@@ -1,0 +1,15 @@
+# Never bake local deps or secrets into the image.
+node_modules
+npm-debug.log*
+.env
+.env.*
+!.env.example
+.git
+.github
+coverage
+tests
+explain
+QnA*.md
+*.log
+Dockerfile
+docker-compose.yml

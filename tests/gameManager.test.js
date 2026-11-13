@@ -2,55 +2,52 @@ const gameManager = require("../game/gameManager");
 
 describe("gameManager", () => {
   beforeEach(() => {
-    gameManager.games.clear();
-    gameManager.socketToGame.clear();
-    gameManager.userIdToGame.clear();
+    for (const id of Array.from(gameManager.games.keys())) gameManager.cleanupGame(id);
   });
 
-  test("creates a game with default timer state", () => {
-    const game = gameManager.createGame(
-      "socket_white",
-      "socket_black",
-      "user_white",
-      "user_black",
-    );
+  test("creates a game in countdown with the chosen time control", () => {
+    const game = gameManager.createGame("sw", "sb", "uw", "ub", { timeControl: "3+2" });
 
     expect(game.id).toMatch(/^game_/);
-    expect(game.chess.fen()).toContain("rnbqkbnr");
-    expect(game.timers.white).toBe(600);
+    expect(game.status).toBe("countdown");
+    expect(game.clock.remainingMs.white).toBe(180000);
+    expect(game.clock.incrementMs).toBe(2000);
     expect(game.isFinished).toBe(false);
-    expect(gameManager.getGameBySocket("socket_white")).toBe(game);
-    expect(gameManager.getGameByUserId("user_white")).toBe(game);
+    expect(gameManager.getGameBySocket("sw")).toBe(game);
+    expect(gameManager.getGameByUserId("uw")).toBe(game);
+  });
+
+  test("only games between two registered users are rated", () => {
+    const id1 = "507f1f77bcf86cd799439011";
+    const id2 = "507f1f77bcf86cd799439012";
+    expect(gameManager.createGame("a", "b", id1, id2).rated).toBe(true);
+    expect(gameManager.createGame("c", "d", id1, "guest_1").rated).toBe(false);
+    expect(
+      gameManager.createGame("e", "bot_engine", id2, "bot_engine", {
+        isBotGame: true,
+        botColor: "b",
+      }).rated,
+    ).toBe(false);
   });
 
   test("reconnects player with new socket id", () => {
-    const game = gameManager.createGame(
-      "socket_white_old",
-      "socket_black",
-      "user_white",
-      "user_black",
-    );
+    const game = gameManager.createGame("sw_old", "sb", "uw", "ub");
+    gameManager.socketToGame.delete("sw_old");
 
-    gameManager.socketToGame.delete("socket_white_old");
-
-    const result = gameManager.reconnectPlayer("user_white", "socket_white_new");
-    expect(result).not.toBeNull();
+    const result = gameManager.reconnectPlayer("uw", "sw_new");
     expect(result.reconnectedColor).toBe("white");
-    expect(game.players.white).toBe("socket_white_new");
-    expect(gameManager.getGameBySocket("socket_white_new")).toBe(game);
+    expect(game.players.white).toBe("sw_new");
+    expect(gameManager.getGameBySocket("sw_new")).toBe(game);
   });
 
-  test("cleanup removes all mappings", () => {
-    const game = gameManager.createGame(
-      "socket_white",
-      "socket_black",
-      "user_white",
-      "user_black",
-    );
+  test("cleaning up an old game does not untrack the user's new game", () => {
+    const oldGame = gameManager.createGame("s1", "s2", "u1", "u2");
+    oldGame.isFinished = true;
+    const newGame = gameManager.createGame("s3", "s4", "u1", "u5");
 
-    gameManager.cleanupGame(game.id);
-    expect(gameManager.games.has(game.id)).toBe(false);
-    expect(gameManager.getGameByUserId("user_white")).toBeNull();
+    gameManager.cleanupGame(oldGame.id);
+    expect(gameManager.getGameByUserId("u1")).toBe(newGame);
+    expect(gameManager.isUserInActiveGame("u1")).toBe(true);
   });
 
   test("counts active games and players", () => {

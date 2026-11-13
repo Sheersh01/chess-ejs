@@ -67,9 +67,11 @@
               <div class="topbar-actions topbar-reveal topbar-reveal-delay-2">
                 <a href="/" class="btn btn-ghost nav-btn nav-btn-active">Home</a>
                 <a href="/profile" class="btn btn-ghost nav-btn">Profile</a>
-                <a href="/auth/logout" class="btn btn-danger nav-btn">
-                  <%= user.isGuest ? 'Exit' : 'Logout' %>
-                </a>
+                <form action="/auth/logout" method="POST" class="nav-form">
+                  <button type="submit" class="btn btn-danger nav-btn">
+                    <%= user.isGuest ? 'Exit' : 'Logout' %>
+                  </button>
+                </form>
               </div>
             </div>
           </div>
@@ -144,6 +146,18 @@
                   <option value="random" selected>Random</option>
                   <option value="white">White</option>
                   <option value="black">Black</option>
+                </select>
+              </div>
+
+              <div class="field-group">
+                <label for="time-control-select" class="field-label">Time Control</label>
+                <select id="time-control-select" class="field-select">
+                  <option value="1+0">1 min (Bullet)</option>
+                  <option value="3+0">3 min (Blitz)</option>
+                  <option value="3+2">3 | 2 (Blitz)</option>
+                  <option value="5+0">5 min (Blitz)</option>
+                  <option value="10+0" selected>10 min (Rapid)</option>
+                  <option value="15+10">15 | 10 (Rapid)</option>
                 </select>
               </div>
 
@@ -355,11 +369,7 @@
         </div>
       </section>
 
-      <script
-        src="https://cdn.socket.io/4.7.5/socket.io.min.js"
-        integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
-        crossorigin="anonymous"
-      ></script>
+      <script src="/socket.io/socket.io.min.js"></script>
       <script
         src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"
         integrity="sha512-xRllwz2gdZciIB+AkEbeq+gVhX8VB8XsfqeFbUh+SzHlN96dEduwtTuVuc2u9EROlmW9+yhRlxjif66ORpsgVA=="

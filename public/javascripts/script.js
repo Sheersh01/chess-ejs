@@ -34,6 +34,7 @@ const chatMessagesElement = document.getElementById("chat-messages");
 const chatForm = document.getElementById("chat-form");
 const chatInput = document.getElementById("chat-input");
 const topbarNavLinks = document.querySelectorAll(".topbar-actions .nav-btn");
+const timeControlSelect = document.getElementById("time-control-select");
 
 let draggedPiece = null;
 let sourceSquare = null;
@@ -159,6 +160,14 @@ document.addEventListener("click", (event) => {
   }
 });
 
+document.addEventListener("submit", (event) => {
+  const action = event.target.getAttribute("action") || "";
+  if (isMatchExitLocked && action.startsWith("/auth/logout")) {
+    event.preventDefault();
+    showNotification(MATCH_EXIT_BLOCK_MESSAGE, "warning", 2600);
+  }
+});
+
 window.addEventListener("beforeunload", (event) => {
   if (!isMatchExitLocked) {
     return;
@@ -221,17 +230,25 @@ const playSound = (type) => {
 };
 
 const getDisplayedTimers = () => {
+  // Server sends millisecond clocks plus which side is running; count down locally.
+  if (typeof currentTimers.whiteMs === "number") {
+    const elapsed = Date.now() - timerSyncAt;
+    const ms = { white: currentTimers.whiteMs, black: currentTimers.blackMs };
+    if (currentTimers.active) {
+      ms[currentTimers.active] = Math.max(0, ms[currentTimers.active] - elapsed);
+    }
+    return { white: Math.ceil(ms.white / 1000), black: Math.ceil(ms.black / 1000) };
+  }
+
   const displayedTimers = { ...currentTimers };
   const activeColor = currentTurn === "w" ? "white" : "black";
   const elapsedSeconds = Math.floor((Date.now() - timerSyncAt) / 1000);
-
   if (elapsedSeconds > 0) {
     displayedTimers[activeColor] = Math.max(
       0,
       displayedTimers[activeColor] - elapsedSeconds,
     );
   }
-
   return displayedTimers;
 };
 
@@ -441,12 +458,14 @@ const requestMatchForMode = (mode) => {
   if (mode === "bot") {
     socket.emit("playBot", {
       colorPreference: getSelectedColorPreference(),
+      timeControl: timeControlSelect?.value || "10+0",
       difficulty: botDifficultySelect?.value || "medium",
       personality: botPersonalitySelect?.value || "positional",
     });
   } else {
     socket.emit("findMatch", {
       colorPreference: getSelectedColorPreference(),
+      timeControl: timeControlSelect?.value || "10+0",
     });
   }
 };
@@ -1467,7 +1486,7 @@ const initializeSocketListeners = () => {
     messageElement.innerText = data.message;
     messageElement.style.display = "block";
 
-    const loserColor = data.winner === "white" ? "black" : "white";
+    const loserColor = data.flagged || (data.winner === "white" ? "black" : "white");
     if (loserColor === "white") {
       whiteTimerElement.textContent = "0:00";
       whiteTimerElement.classList.remove("active");
@@ -1510,11 +1529,20 @@ const initializeSocketListeners = () => {
   });
 
   socket.on("ratingUpdate", (userData) => {
-    console.log("Rating updated:", userData.rating);
     if (userRatingValueElement && typeof userData.rating !== "undefined") {
       userRatingValueElement.textContent = userData.rating;
     }
-    showNotification(`Your new rating: ${userData.rating}`, "info", 3000);
+    const delta =
+      typeof userData.delta === "number"
+        ? ` (${userData.delta >= 0 ? "+" : ""}${userData.delta})`
+        : "";
+    showNotification(`Your new rating: ${userData.rating}${delta}`, "info", 3000);
+  });
+
+  socket.on("error", (data) => {
+    if (data?.message) {
+      showNotification(data.message, "warning", 2500);
+    }
   });
 
   socket.on("matchmakingBlocked", (data) => {

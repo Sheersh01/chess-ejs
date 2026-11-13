@@ -8,6 +8,7 @@ const validate = require("../../middleware/validate");
 const {
   registerValidation,
   loginValidation,
+  changePasswordValidation,
   profileValidation,
 } = require("../../validators/authValidators");
 const { updateProfile, deleteAccount } = require("../../controllers/profileController");
@@ -89,18 +90,31 @@ router.get("/users/:id", protectApi, apiController.getUserById);
  *     summary: Update profile settings
  *     tags: [Users]
  */
+router.post("/profile", protectApi, profileValidation, validate, updateProfile);
+
+/**
+ * @openapi
+ * /profile/password:
+ *   post:
+ *     summary: Change password (revokes all existing tokens, returns a new one)
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword: { type: string }
+ *               newPassword: { type: string, minLength: 8 }
+ */
 router.post(
-  "/profile",
+  "/profile/password",
   protectApi,
-  profileValidation,
+  changePasswordValidation,
   validate,
-  async (req, res, next) => {
-    try {
-      await updateProfile(req, res, next);
-    } catch (error) {
-      next(error);
-    }
-  },
+  apiAuthController.changePassword,
 );
 
 router.post("/profile/delete", protectApi, deleteAccount);
@@ -141,6 +155,9 @@ router.get("/leaderboard", protectApi, apiController.getLeaderboard);
  */
 router.get("/stats", apiController.getStats);
 
-router.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// API docs are for development; opt in explicitly to expose them in production.
+if (process.env.NODE_ENV !== "production" || process.env.ENABLE_API_DOCS === "true") {
+  router.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+}
 
 module.exports = router;

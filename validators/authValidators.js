@@ -1,19 +1,46 @@
 const { body } = require("express-validator");
 
-const registerValidation = [
+const PASSWORD_MIN = 8;
+
+const usernameRule = () =>
   body("username")
     .trim()
     .isLength({ min: 3, max: 20 })
-    .withMessage("Username must be 3-20 characters"),
-  body("email").isEmail().withMessage("Valid email is required").normalizeEmail(),
-  body("password")
-    .isLength({ min: 6 })
-    .withMessage("Password must be at least 6 characters"),
+    .withMessage("Username must be 3-20 characters")
+    .matches(/^[A-Za-z0-9_-]+$/)
+    .withMessage("Username may only contain letters, numbers, underscores and hyphens");
+
+const newPasswordRule = (field) =>
+  body(field)
+    .isString()
+    .isLength({ min: PASSWORD_MIN, max: 72 })
+    .withMessage(`Password must be ${PASSWORD_MIN}-72 characters`);
+
+const registerValidation = [
+  usernameRule(),
+  body("email")
+    .trim()
+    .isEmail()
+    .withMessage("Valid email is required")
+    .normalizeEmail(),
+  newPasswordRule("password"),
 ];
 
 const loginValidation = [
-  body("email").isEmail().withMessage("Valid email is required").normalizeEmail(),
-  body("password").notEmpty().withMessage("Password is required"),
+  body("email")
+    .trim()
+    .isEmail()
+    .withMessage("Valid email is required")
+    .normalizeEmail(),
+  body("password").isString().notEmpty().withMessage("Password is required"),
+];
+
+const changePasswordValidation = [
+  body("currentPassword")
+    .isString()
+    .notEmpty()
+    .withMessage("Current password is required"),
+  newPasswordRule("newPassword"),
 ];
 
 const profileValidation = [
@@ -37,7 +64,9 @@ const profileValidation = [
 ];
 
 module.exports = {
+  PASSWORD_MIN,
   registerValidation,
   loginValidation,
+  changePasswordValidation,
   profileValidation,
 };

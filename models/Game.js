@@ -6,17 +6,14 @@ const gameSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
     whiteUserId: {
       type: String,
       required: true,
-      index: true,
     },
     blackUserId: {
       type: String,
       required: true,
-      index: true,
     },
     whiteUsername: { type: String, default: "" },
     blackUsername: { type: String, default: "" },
@@ -25,6 +22,8 @@ const gameSchema = new mongoose.Schema(
       enum: ["online", "bot"],
       default: "online",
     },
+    rated: { type: Boolean, default: false },
+    timeControl: { type: String, default: "10+0" },
     status: {
       type: String,
       enum: ["active", "completed", "abandoned"],
@@ -34,6 +33,10 @@ const gameSchema = new mongoose.Schema(
     fen: { type: String, default: "" },
     pgn: { type: String, default: "" },
     moveCount: { type: Number, default: 0 },
+    clocks: {
+      whiteMs: { type: Number },
+      blackMs: { type: Number },
+    },
     result: {
       type: String,
       enum: ["white", "black", "draw", null],
@@ -49,5 +52,9 @@ const gameSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+// "My games" queries: filter by player + status, newest first.
+gameSchema.index({ whiteUserId: 1, status: 1, finishedAt: -1 });
+gameSchema.index({ blackUserId: 1, status: 1, finishedAt: -1 });
 
 module.exports = mongoose.model("Game", gameSchema);

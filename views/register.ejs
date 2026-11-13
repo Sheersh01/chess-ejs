@@ -68,6 +68,8 @@
                 required
                 minlength="3"
                 maxlength="20"
+                pattern="[A-Za-z0-9_-]+"
+                title="Letters, numbers, underscores and hyphens only"
                 class="field-input"
                 placeholder="Choose a username"
               />
@@ -94,7 +96,7 @@
                 id="password"
                 name="password"
                 required
-                minlength="6"
+                minlength="8"
                 class="field-input"
                 placeholder="Create a password"
               />
