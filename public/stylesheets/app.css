@@ -1332,17 +1332,23 @@ textarea.field-text {
    Game screen
    ========================================================================== */
 
+#game-area.page,
+main:has(#replay) {
+  padding: 8px 0 10px;
+}
+
 .game-layout {
+  --board-size: min(640px, calc(100vh - var(--topbar-height) - 180px));
   display: grid;
-  grid-template-columns: 640px 380px;
+  grid-template-columns: var(--board-size) minmax(300px, 360px);
   justify-content: center;
-  gap: 24px;
+  gap: 16px;
   align-items: start;
 }
 
 .board-column {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 /* Player strip above / below the board */
@@ -1350,8 +1356,8 @@ textarea.field-text {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 64px;
-  padding: 4px 0 4px 4px;
+  min-height: 52px;
+  padding: 2px 0 2px 4px;
   border: 0;
   border-radius: var(--radius);
   background: transparent;
@@ -1407,7 +1413,7 @@ textarea.field-text {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 20px;
+  min-height: 16px;
 }
 
 .captured-pieces {
@@ -1444,13 +1450,13 @@ textarea.field-text {
   flex: none;
   align-items: center;
   justify-content: flex-end;
-  min-width: 132px;
-  min-height: 56px;
-  padding: 8px 16px;
+  min-width: 108px;
+  min-height: 48px;
+  padding: 6px 12px;
   border-radius: 6px;
   background: var(--clock);
   color: var(--clock-text);
-  font-size: 2rem;
+  font-size: 1.65rem;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -1726,7 +1732,7 @@ button.move-cell:hover {
 .board {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
-  width: min(100%, 640px);
+  width: min(100%, var(--board-size, 640px));
   aspect-ratio: 1;
   margin: 0 auto;
   border-radius: 14px;
