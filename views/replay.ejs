@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <%- include('partials/head', { title: 'Game Review' }) %>
+  </head>
+  <body
+    style="--board-light:<%= user?.settings?.boardLight || '#f0d9b5' %>; --board-dark:<%= user?.settings?.boardDark || '#b58863' %>; --hint-color:<%= user?.settings?.hintColor || '#14551e' %>;"
+  >
+    <%- include('partials/small-device') %>
+
+    <div id="desktop-app">
+      <%- include('partials/topbar', { user, active: 'games' }) %>
+
+      <main id="main-content" class="page" tabindex="-1">
+        <div class="game-layout" id="replay" data-replay="<%= replayData %>">
+          <div class="board-column">
+            <div id="replay-top" class="player-strip"></div>
+            <div id="board"></div>
+            <div id="replay-bottom" class="player-strip"></div>
+            <p class="board-hint">Use ← and → (Home / End) to step through the game.</p>
+          </div>
+
+          <div class="side-panel-wrap">
+            <aside class="side-panel card" aria-label="Game review">
+              <div class="side-header">
+                <div class="side-toolbar">
+                  <a class="btn btn-quiet btn-sm" href="/games">← All games</a>
+                  <span class="result-pill result-<%= outcome.tone %>"><%= outcome.label %></span>
+                </div>
+                <div>
+                  <div class="turn-display">
+                    <%= game.whiteUsername %> <span class="muted">vs</span> <%= game.blackUsername %>
+                  </div>
+                  <p class="muted turn-note"><%= game.reason || 'Finished game' %></p>
+                </div>
+                <div class="board-meta">
+                  <span class="board-status"><%= game.timeControl %></span>
+                  <span class="board-status"><%= game.mode === 'bot' ? 'Bot game' : 'Online' %></span>
+                  <span class="board-status"><%= game.rated ? 'Rated' : 'Unrated' %></span>
+                  <% if (game.finishedAt) { %>
+                  <span class="board-status"><time datetime="<%= new Date(game.finishedAt).toISOString() %>"><%= new Date(game.finishedAt).toLocaleDateString() %></time></span>
+                  <% } %>
+                </div>
+              </div>
+
+              <div id="move-history" class="side-moves" aria-label="Moves"></div>
+
+              <div class="side-section">
+                <div class="replay-controls" role="toolbar" aria-label="Replay controls">
+                  <button type="button" class="btn btn-ghost btn-icon" data-step="start" aria-label="First move">⏮</button>
+                  <button type="button" class="btn btn-ghost btn-icon" data-step="prev" aria-label="Previous move">◀</button>
+                  <span id="replay-position" class="replay-position" aria-live="polite">Start</span>
+                  <button type="button" class="btn btn-ghost btn-icon" data-step="next" aria-label="Next move">▶</button>
+                  <button type="button" class="btn btn-ghost btn-icon" data-step="end" aria-label="Last move">⏭</button>
+                  <button type="button" class="btn btn-quiet btn-icon" id="replay-flip" aria-label="Flip board" title="Flip board">⇅</button>
+                </div>
+              </div>
+
+              <div class="side-section">
+                <details class="pgn-details">
+                  <summary>PGN</summary>
+                  <textarea class="field-text pgn-text" readonly rows="5" aria-label="PGN"><%= game.pgn %></textarea>
+                </details>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/javascripts/app/pages/replay.js"></script>
+  </body>
+</html>

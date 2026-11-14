@@ -1,59 +1,77 @@
+const { validateEnv } = require("./config/env"); // loads .env before anything else
 const http = require("http");
-const app = require("./app");
 const logger = require("./config/logger");
+const { connectDB, closeDB } = require("./config/database");
 const { closeRedis } = require("./config/redis");
-const gameManager = require("./game/gameManager");
+const { abortAllGames } = require("./game/gameLifecycle");
+const botManager = require("./game/botManager");
+const { abandonOrphanedGames } = require("./services/gamePersistence");
 
-let server;
-let io;
+const SHUTDOWN_TIMEOUT_MS = 10000;
 
-const startServer = async () => {
-  server = http.createServer(app);
-  const socketInit = require("./socket");
-  io = await socketInit(server);
+/** Build and start the HTTP + Socket.IO server. Returns handles for tests/shutdown. */
+const start = async ({ port = process.env.PORT || 3000 } = {}) => {
+  validateEnv();
+  const app = require("./app");
+  const initSocket = require("./socket");
 
-  const PORT = process.env.PORT || 3000;
-  server.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
-  });
-};
+  await connectDB();
+  // Single instance: anything still "active" in the DB was cut off by a restart.
+  await abandonOrphanedGames();
 
-const gracefulShutdown = async (signal) => {
-  logger.info(`${signal} received, shutting down gracefully`);
+  const server = http.createServer(app);
+  const io = await initSocket(server);
 
-  for (const game of gameManager.games.values()) {
-    if (game.timerInterval) clearInterval(game.timerInterval);
-    if (game.bot?.pendingMoveTimeout) clearTimeout(game.bot.pendingMoveTimeout);
-    if (game.disconnectTimers?.white) clearTimeout(game.disconnectTimers.white);
-    if (game.disconnectTimers?.black) clearTimeout(game.disconnectTimers.black);
-  }
+  await new Promise((resolve) => server.listen(port, resolve));
+  logger.info(`Server running on port ${server.address().port}`);
 
-  if (io) {
-    io.close();
-  }
-
-  if (server) {
-    server.close(async () => {
+  let stopping = null;
+  const stop = (reason = "Server shutting down") => {
+    if (stopping) return stopping;
+    stopping = (async () => {
+      // Tell players and persist abandoned games before sockets close.
+      const aborted = await abortAllGames(io, reason);
+      if (aborted > 0) logger.info({ aborted }, "Aborted live games");
+      await botManager.shutdown();
+      await new Promise((resolve) => io.close(() => resolve()));
+      await Promise.all((io.shutdownHooks || []).map((hook) => hook()));
+      if (server.listening) {
+        await new Promise((resolve) => server.close(() => resolve()));
+      }
       await closeRedis();
-      logger.info("Server closed");
-      process.exit(0);
-    });
-  } else {
-    process.exit(0);
-  }
+      await closeDB();
+    })();
+    return stopping;
+  };
 
-  setTimeout(() => {
-    logger.error("Forced shutdown after timeout");
-    process.exit(1);
-  }, 10000);
+  return { app, server, io, stop };
 };
 
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+if (require.main === module) {
+  start()
+    .then(({ stop }) => {
+      const shutdown = async (signal) => {
+        logger.info(`${signal} received, shutting down gracefully`);
+        setTimeout(() => {
+          logger.error("Forced shutdown after timeout");
+          process.exit(1);
+        }, SHUTDOWN_TIMEOUT_MS).unref();
+        try {
+          await stop("Server restarting");
+          logger.info("Server closed");
+          process.exit(0);
+        } catch (error) {
+          logger.error({ err: error }, "Error during shutdown");
+          process.exit(1);
+        }
+      };
+      process.on("SIGTERM", () => shutdown("SIGTERM"));
+      process.on("SIGINT", () => shutdown("SIGINT"));
+    })
+    .catch((error) => {
+      logger.error({ err: error }, "Failed to start server");
+      process.exit(1);
+    });
+}
 
-startServer().catch((err) => {
-  logger.error({ err }, "Failed to start server");
-  process.exit(1);
-});
-
-module.exports = { server, io };
+module.exports = { start };

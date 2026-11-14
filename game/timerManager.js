@@ -1,183 +1,186 @@
-const { stats } = require("../stats/gameStats");
-const ratingManager = require("./ratingManager");
-const historyManager = require("./historyManager");
+const { getTimeControl } = require("./timeControls");
 
-const TICK_MS = 200;
+const LOW_TIME_THRESHOLD_MS = 10 * 1000;
 
-const getActiveColor = (game) => (game.chess.turn() === "w" ? "white" : "black");
+const colorForTurn = (turn) => (turn === "w" ? "white" : "black");
 
-const getDisplaySeconds = (remainingMs) => Math.max(0, Math.ceil(remainingMs / 1000));
+const createClock = (timeControl) => {
+  const { key, initialMs, incrementMs } = getTimeControl(timeControl);
+  return {
+    timeControl: key,
+    initialMs,
+    incrementMs,
+    remainingMs: { white: initialMs, black: initialMs },
+    activeColor: null,
+    turnStartedAt: null,
+    running: false,
+    lowTimeNotified: { white: false, black: false },
+    flagTimeout: null,
+    lowTimeTimeout: null,
+    onFlag: null,
+    io: null,
+  };
+};
 
-const ensureTimerState = (game) => {
-  if (!game.timerState) {
-    game.timerState = {
-      remainingMs: {
-        white: (game.timers?.white || 600) * 1000,
-        black: (game.timers?.black || 600) * 1000,
-      },
-      activeColor: null,
-      lastUpdatedAt: null,
-      lastBroadcastSeconds: { ...game.timers },
-      lowTimeNotified: { white: false, black: false },
-      running: false,
-    };
+const clearScheduled = (clock) => {
+  if (clock.flagTimeout) clearTimeout(clock.flagTimeout);
+  if (clock.lowTimeTimeout) clearTimeout(clock.lowTimeTimeout);
+  clock.flagTimeout = null;
+  clock.lowTimeTimeout = null;
+};
+
+const getRemainingMs = (game, color, now = Date.now()) => {
+  const clock = game.clock;
+  const base = clock.remainingMs[color];
+  if (clock.running && clock.activeColor === color && clock.turnStartedAt !== null) {
+    return Math.max(0, base - (now - clock.turnStartedAt));
   }
-
-  return game.timerState;
+  return Math.max(0, base);
 };
 
-const updateDisplayTimers = (game) => {
-  const state = ensureTimerState(game);
-  game.timers.white = getDisplaySeconds(state.remainingMs.white);
-  game.timers.black = getDisplaySeconds(state.remainingMs.black);
-  return game.timers;
+const hasFlagged = (game, now = Date.now()) => {
+  const clock = game.clock;
+  return Boolean(
+    clock.running &&
+    clock.activeColor &&
+    getRemainingMs(game, clock.activeColor, now) <= 0,
+  );
 };
 
-const emitTimerUpdate = (game, io, force = true) => {
-  const state = ensureTimerState(game);
-  const timers = updateDisplayTimers(game);
-  const changed =
-    force ||
-    timers.white !== state.lastBroadcastSeconds.white ||
-    timers.black !== state.lastBroadcastSeconds.black;
+const buildPayload = (game, now = Date.now()) => {
+  const whiteMs = getRemainingMs(game, "white", now);
+  const blackMs = getRemainingMs(game, "black", now);
+  return {
+    white: Math.ceil(whiteMs / 1000),
+    black: Math.ceil(blackMs / 1000),
+    whiteMs,
+    blackMs,
+    active: game.clock.running ? game.clock.activeColor : null,
+    serverTs: now,
+    timeControl: game.clock.timeControl,
+  };
+};
 
-  if (!changed) {
+const emitUpdate = (game, io, target = null) => {
+  const payload = buildPayload(game);
+  (target || io.to(game.id)).emit("timerUpdate", payload);
+};
+
+// Freeze the active side's clock at `now` (charges elapsed time).
+const settleActive = (clock, now) => {
+  if (clock.running && clock.activeColor && clock.turnStartedAt !== null) {
+    const elapsed = Math.max(0, now - clock.turnStartedAt);
+    clock.remainingMs[clock.activeColor] = Math.max(
+      0,
+      clock.remainingMs[clock.activeColor] - elapsed,
+    );
+    clock.turnStartedAt = now;
+  }
+};
+
+const schedule = (game) => {
+  const clock = game.clock;
+  clearScheduled(clock);
+  if (!clock.running || !clock.activeColor) {
     return;
   }
 
-  state.lastBroadcastSeconds = { ...timers };
-  io.to(game.id).emit("timerUpdate", timers);
+  const color = clock.activeColor;
+  const remaining = getRemainingMs(game, color);
+
+  if (!clock.lowTimeNotified[color] && remaining > 0) {
+    const delay = Math.max(0, remaining - LOW_TIME_THRESHOLD_MS);
+    clock.lowTimeTimeout = setTimeout(() => {
+      if (
+        clock.running &&
+        clock.activeColor === color &&
+        !clock.lowTimeNotified[color]
+      ) {
+        clock.lowTimeNotified[color] = true;
+        clock.io?.to(game.id).emit("lowTime", { color });
+      }
+    }, delay);
+  }
+
+  clock.flagTimeout = setTimeout(() => {
+    if (!clock.running || clock.activeColor !== color) {
+      return;
+    }
+    // Timers can fire a little early; re-arm until the clock really hits zero.
+    if (getRemainingMs(game, color) > 0) {
+      schedule(game);
+      return;
+    }
+    flag(game);
+  }, remaining);
 };
 
-const emitLowTimeIfNeeded = (game, io, color) => {
-  const state = ensureTimerState(game);
-  const timers = updateDisplayTimers(game);
-
-  if (
-    color &&
-    !state.lowTimeNotified[color] &&
-    state.remainingMs[color] > 0 &&
-    timers[color] <= 10
-  ) {
-    state.lowTimeNotified[color] = true;
-    io.to(game.id).emit("lowTime", { color });
+const flag = (game) => {
+  const clock = game.clock;
+  const color = clock.activeColor;
+  stop(game);
+  clock.remainingMs[color] = 0;
+  if (typeof clock.onFlag === "function") {
+    clock.onFlag(game, color);
   }
 };
 
-const handleTimeout = async (game, io, color) => {
-  game.isFinished = true;
-
-  stopTimer(game);
-  stats.timeouts++;
-  stats.completedGames++;
-
-  const winner = color === "white" ? "black" : "white";
-  const reason = `${color === "white" ? "White" : "Black"} ran out of time!`;
-
-  if (winner === "white") {
-    stats.whiteWins++;
-  } else {
-    stats.blackWins++;
-  }
-
-  await ratingManager(game, winner, io);
-  await historyManager(game, winner, reason);
-
-  io.to(game.id).emit("timeOut", {
-    winner,
-    message: reason,
-  });
-
-  const gameManager = require("./gameManager");
-  gameManager.cleanupGame(game.id);
+/** Start the clock for the side to move. `onFlag(game, color)` fires on flag fall. */
+const start = (game, io, onFlag) => {
+  const clock = game.clock;
+  clock.io = io;
+  clock.onFlag = onFlag;
+  clock.running = true;
+  clock.activeColor = colorForTurn(game.chess.turn());
+  clock.turnStartedAt = Date.now();
+  schedule(game);
+  emitUpdate(game, io);
 };
 
-const syncActiveTimer = (game, io) => {
-  const state = ensureTimerState(game);
-
-  if (!state.running || !state.activeColor || !state.lastUpdatedAt) {
-    return false;
+/**
+ * Called after a move has been applied: charges the mover, adds increment,
+ * and starts the opponent's clock. The caller must check `hasFlagged` first.
+ */
+const switchTurn = (game, io, moverColor, now = Date.now()) => {
+  const clock = game.clock;
+  if (!clock.running) {
+    return;
   }
+  settleActive(clock, now);
+  clock.remainingMs[moverColor] += clock.incrementMs;
+  clock.activeColor = colorForTurn(game.chess.turn());
+  clock.turnStartedAt = now;
+  schedule(game);
+  emitUpdate(game, io);
+};
 
-  const now = Date.now();
-  const elapsedMs = now - state.lastUpdatedAt;
-  if (elapsedMs <= 0) {
-    return false;
-  }
+const stop = (game) => {
+  const clock = game.clock;
+  if (!clock) return;
+  settleActive(clock, Date.now());
+  clock.running = false;
+  clock.turnStartedAt = null;
+  clearScheduled(clock);
+};
 
-  const color = state.activeColor;
-  state.remainingMs[color] = Math.max(0, state.remainingMs[color] - elapsedMs);
-  state.lastUpdatedAt = now;
-
-  emitLowTimeIfNeeded(game, io, color);
-  updateDisplayTimers(game);
-
-  if (state.remainingMs[color] <= 0) {
-    emitTimerUpdate(game, io, true);
-    void handleTimeout(game, io, color);
+/** If the side to move has run out of time, end the game on time now. */
+const checkFlag = (game) => {
+  if (hasFlagged(game)) {
+    flag(game);
     return true;
   }
-
   return false;
 };
 
-const syncToCurrentTurn = (game, io) => {
-  const state = ensureTimerState(game);
-
-  if (!state.running) {
-    return;
-  }
-
-  const timedOut = syncActiveTimer(game, io);
-  if (timedOut) {
-    return;
-  }
-
-  state.activeColor = getActiveColor(game);
-  state.lastUpdatedAt = Date.now();
-  emitTimerUpdate(game, io, true);
-};
-
-const startTimer = (game, io) => {
-  const state = ensureTimerState(game);
-
-  if (game.timerInterval) {
-    clearInterval(game.timerInterval);
-  }
-
-  state.running = true;
-  state.activeColor = getActiveColor(game);
-  state.lastUpdatedAt = Date.now();
-  updateDisplayTimers(game);
-  state.lastBroadcastSeconds = { white: -1, black: -1 };
-
-  emitTimerUpdate(game, io, true);
-
-  game.timerInterval = setInterval(() => {
-    const timedOut = syncActiveTimer(game, io);
-    if (timedOut) {
-      return;
-    }
-
-    emitTimerUpdate(game, io, false);
-  }, TICK_MS);
-};
-
-const stopTimer = (game) => {
-  const state = ensureTimerState(game);
-  state.running = false;
-  state.activeColor = null;
-  state.lastUpdatedAt = null;
-
-  if (game.timerInterval) {
-    clearInterval(game.timerInterval);
-    game.timerInterval = null;
-  }
-};
-
 module.exports = {
-  emitTimerUpdate,
-  startTimer,
-  stopTimer,
-  syncToCurrentTurn,
+  LOW_TIME_THRESHOLD_MS,
+  createClock,
+  start,
+  stop,
+  switchTurn,
+  hasFlagged,
+  checkFlag,
+  getRemainingMs,
+  emitUpdate,
+  buildPayload,
 };

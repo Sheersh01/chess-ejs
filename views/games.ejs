@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <%- include('partials/head', { title: 'My Games' }) %>
+  </head>
+  <body>
+    <%- include('partials/small-device') %>
+
+    <div id="desktop-app">
+      <%- include('partials/topbar', { user, active: 'games' }) %>
+
+      <main id="main-content" class="page" tabindex="-1">
+        <div class="container">
+          <header class="page-header">
+            <div>
+              <h1 class="page-title">My Games</h1>
+              <p class="page-subtitle">Every finished game, newest first. Open one to replay it move by move.</p>
+            </div>
+          </header>
+
+          <section class="card">
+            <% if (unavailable) { %>
+            <div class="empty-state">
+              <strong>Game history unavailable</strong>
+              <span>The database is offline right now. Try again later.</span>
+            </div>
+            <% } else if (games.length === 0) { %>
+            <div class="empty-state">
+              <strong>No finished games yet</strong>
+              <span>Play a game and it will show up here.</span>
+              <a class="btn btn-primary" href="/">Play now</a>
+            </div>
+            <% } else { %>
+            <table class="data-table">
+              <caption class="sr-only">Your finished games</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Result</th>
+                  <th scope="col">Opponent</th>
+                  <th scope="col">Game</th>
+                  <th scope="col">Ended by</th>
+                  <th scope="col" class="num">Moves</th>
+                  <th scope="col">Date</th>
+                  <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <% games.forEach((game) => { %>
+                <tr>
+                  <td><span class="result-pill result-<%= game.outcome.tone %>"><%= game.outcome.label %></span></td>
+                  <td>
+                    <div class="player-cell">
+                      <span class="color-dot color-dot-<%= game.myColor %>" title="You played <%= game.myColor %>"></span>
+                      <strong><%= game.opponent %></strong>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="chip"><%= game.timeControl %></span>
+                    <span class="muted mode-meta"><%= game.mode === 'bot' ? 'Bot' : 'Online' %><%= game.rated ? ' · Rated' : '' %></span>
+                  </td>
+                  <td class="muted"><%= game.reason || '—' %></td>
+                  <td class="num"><%= Math.ceil((game.moveCount || 0) / 2) %></td>
+                  <td class="muted">
+                    <% if (game.finishedAt) { %>
+                    <time datetime="<%= new Date(game.finishedAt).toISOString() %>"><%= new Date(game.finishedAt).toLocaleString() %></time>
+                    <% } %>
+                  </td>
+                  <td class="num"><a class="btn btn-ghost btn-sm" href="/games/<%= encodeURIComponent(game.gameId) %>">Review</a></td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+
+            <% if (pages > 1) { %>
+            <nav class="pagination" aria-label="Pages">
+              <% if (page > 1) { %><a class="btn btn-ghost btn-sm" href="/games?page=<%= page - 1 %>">← Newer</a><% } %>
+              <span>Page <%= page %> of <%= pages %></span>
+              <% if (page < pages) { %><a class="btn btn-ghost btn-sm" href="/games?page=<%= page + 1 %>">Older →</a><% } %>
+            </nav>
+            <% } %>
+            <% } %>
+          </section>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/javascripts/app/pages/basic.js"></script>
+  </body>
+</html>

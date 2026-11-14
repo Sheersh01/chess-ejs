@@ -1,360 +1,176 @@
 const gameManager = require("../game/gameManager");
 const timerManager = require("../game/timerManager");
-const ratingManager = require("../game/ratingManager");
-const historyManager = require("../game/historyManager");
-const botManager = require("../game/botManager");
-const { updateGameRecord, finalizeGameRecord } = require("../services/gamePersistence");
+const {
+  endGame,
+  capitalize,
+  opposite,
+  buildGameInfo,
+  emitDrawOfferState,
+} = require("../game/gameLifecycle");
+const { parseMoveInput, playMove } = require("../game/moveService");
 const { stats } = require("../stats/gameStats");
-const { pieceValues } = require("../game/constants");
 const logger = require("../config/logger");
 
-// Helper function to calculate captured pieces value
-const calculateScore = (capturedPieces) => {
-  return capturedPieces.reduce((sum, piece) => sum + (pieceValues[piece] || 0), 0);
+const DISCONNECT_GRACE_MS = Number(process.env.DISCONNECT_GRACE_MS) || 30000;
+const DRAW_OFFER_PLY_GAP = 10; // a player may offer at most once every 10 half-moves
+
+const sanitizeChatMessage = (message) =>
+  typeof message === "string" ? message.replace(/\s+/g, " ").trim().slice(0, 300) : "";
+
+const getUserId = (socket) => socket.user?._id || socket.user?.id;
+
+/**
+ * The game this socket is playing, with its color, or null if the game is over,
+ * still counting down (when `requireActive`), or the socket isn't a participant.
+ */
+const getPlayerContext = (socket, { requireActive = true } = {}) => {
+  const game = gameManager.getGameBySocket(socket.id);
+  if (!game || game.isFinished) return null;
+  if (requireActive && game.status !== "active") return null;
+  const color = gameManager.getColorForSocket(game, socket.id);
+  return color ? { game, color } : null;
 };
 
-const isSocketPlayer = (playerId) =>
-  typeof playerId === "string" && !playerId.startsWith("bot_");
-
-const sanitizeChatMessage = (message) => {
-  if (typeof message !== "string") {
-    return "";
-  }
-
-  return message.replace(/\s+/g, " ").trim().slice(0, 300);
+const opponentSocketId = (game, color) => {
+  const id = game.players[opposite(color)];
+  return gameManager.isSocketPlayer(id) ? id : null;
 };
 
-const applyMoveEffects = (game, move, io) => {
-  game.moveHistory.push(move);
-
-  if (move.captured) {
-    const capturedBy = move.color === "w" ? "white" : "black";
-    game.capturedPieces[capturedBy].push(move.captured);
-
-    game.scores.w = calculateScore(game.capturedPieces.white);
-    game.scores.b = calculateScore(game.capturedPieces.black);
-
-    io.to(game.id).emit("capturedPiecesUpdate", game.capturedPieces);
-    io.to(game.id).emit("scoreUpdate", game.scores);
-  }
-};
-
-const emitBoardState = (game, io) => {
-  io.to(game.id).emit("boardstate", game.chess.fen());
-  io.to(game.id).emit("moveHistory", game.moveHistory);
-  io.to(game.id).emit("turnChange", game.chess.turn());
-  timerManager.syncToCurrentTurn(game, io);
-};
-
-const resolveGameResult = (game) => {
-  if (!game.chess.isGameOver()) {
-    return null;
-  }
-
-  if (game.chess.isCheckmate()) {
-    const result = game.chess.turn() === "w" ? "black" : "white";
-    stats.checkmates++;
-    return { result, reason: "Checkmate!" };
-  }
-
-  if (game.chess.isDraw()) {
-    if (game.chess.isStalemate()) {
-      return { result: "draw", reason: "Stalemate!" };
-    }
-    if (game.chess.isThreefoldRepetition()) {
-      return { result: "draw", reason: "Draw by threefold repetition" };
-    }
-    if (game.chess.isInsufficientMaterial()) {
-      return { result: "draw", reason: "Draw by insufficient material" };
-    }
-    return { result: "draw", reason: "Draw by 50-move rule" };
-  }
-
-  return { result: "draw", reason: "Game over" };
-};
-
-// Helper function to handle game end
-const handleGameEnd = async (game, io, result, reason) => {
-  game.isFinished = true;
-
-  // Stop the timer
-  timerManager.stopTimer(game);
-
-  if (game.bot?.pendingMoveTimeout) {
-    clearTimeout(game.bot.pendingMoveTimeout);
-    game.bot.pendingMoveTimeout = null;
-  }
-
-  // Update statistics
-  stats.completedGames++;
-  if (result === "white") {
-    stats.whiteWins++;
-  } else if (result === "black") {
-    stats.blackWins++;
-  } else {
-    stats.draws++;
-  }
-
-  // Update player ratings
-  await ratingManager(game, result, io);
-  await historyManager(game, result, reason);
-  await finalizeGameRecord(game, result, reason);
-
-  // Notify players about game end
-  let message;
-  if (result === "draw") {
-    message = reason || "It's a draw!";
-  } else {
-    const winner = result.charAt(0).toUpperCase() + result.slice(1);
-    message = reason ? `${reason}. ${winner} wins!` : `${winner} wins!`;
-  }
-  io.to(game.id).emit("gameOver", { result, message });
-
-  // Clean up the game after a short delay
-  setTimeout(() => {
-    gameManager.cleanupGame(game.id);
-  }, 5000);
-};
-
-const processGameOverIfNeeded = async (game, io) => {
-  const outcome = resolveGameResult(game);
-  if (!outcome) {
-    return false;
-  }
-
-  await handleGameEnd(game, io, outcome.result, outcome.reason);
-  return true;
-};
-
-const maybeScheduleBotMove = (game, io) => {
-  if (!game?.isBotGame || !game.bot) {
+const syncReconnectingPlayer = (socket, game, color, io) => {
+  socket.emit("playerRole", color === "white" ? "w" : "b");
+  socket.emit("gameInfo", buildGameInfo(game));
+  if (game.status === "countdown") {
+    socket.emit("startCountdown");
     return;
   }
-
-  const botColorTurn = game.bot.color === "w" ? "w" : "b";
-  if (game.chess.turn() !== botColorTurn || game.chess.isGameOver()) {
-    return;
-  }
-
-  if (game.bot.pendingMoveTimeout) {
-    clearTimeout(game.bot.pendingMoveTimeout);
-    game.bot.pendingMoveTimeout = null;
-  }
-
-  const timeoutId = setTimeout(async () => {
-    try {
-      const stillActiveGame = gameManager.games.get(game.id);
-      if (!stillActiveGame || stillActiveGame.chess.isGameOver()) {
-        return;
-      }
-
-      const expectedTurn = stillActiveGame.bot?.color || "b";
-      if (stillActiveGame.chess.turn() !== expectedTurn) {
-        return;
-      }
-
-      const botMoveInput = botManager.getBotMove(stillActiveGame.chess, {
-        difficulty: stillActiveGame.bot?.difficulty,
-        personality: stillActiveGame.bot?.personality,
-        botColor: stillActiveGame.bot?.color,
-      });
-      if (!botMoveInput) {
-        await processGameOverIfNeeded(stillActiveGame, io);
-        return;
-      }
-
-      const botMove = stillActiveGame.chess.move({
-        from: botMoveInput.from,
-        to: botMoveInput.to,
-        promotion: botMoveInput.promotion,
-      });
-
-      if (!botMove) {
-        return;
-      }
-
-      applyMoveEffects(stillActiveGame, botMove, io);
-      io.to(stillActiveGame.id).emit("move", botMove);
-      emitBoardState(stillActiveGame, io);
-
-      const ended = await processGameOverIfNeeded(stillActiveGame, io);
-      if (!ended) {
-        maybeScheduleBotMove(stillActiveGame, io);
-      }
-    } catch (error) {
-      console.error("Bot move error:", error);
-    } finally {
-      if (game.bot?.pendingMoveTimeout === timeoutId) {
-        game.bot.pendingMoveTimeout = null;
-      }
-    }
-  }, game.bot.thinkTimeMs || 500);
-
-  game.bot.pendingMoveTimeout = timeoutId;
-};
-
-const syncReconnectingPlayer = (socket, game, reconnectedColor, io) => {
-  const role = reconnectedColor === "white" ? "w" : "b";
-  socket.emit("playerRole", role);
   socket.emit("gameStart");
   socket.emit("boardstate", game.chess.fen());
   socket.emit("moveHistory", game.moveHistory);
   socket.emit("turnChange", game.chess.turn());
   socket.emit("capturedPiecesUpdate", game.capturedPieces);
   socket.emit("scoreUpdate", game.scores);
-  timerManager.emitTimerUpdate(game, io, true);
+  timerManager.emitUpdate(game, io, socket);
+  socket.emit("drawOfferState", { by: game.drawOffer?.by || null });
 
-  const opponentColor = reconnectedColor === "white" ? "black" : "white";
-  const opponentSocketId = game.players[opponentColor];
-  if (gameManager.isSocketPlayer(opponentSocketId)) {
-    io.to(opponentSocketId).emit("opponentReconnected", {
-      message: `${reconnectedColor === "white" ? "White" : "Black"} reconnected`,
+  if (game.drawOffer && game.drawOffer.by !== color) {
+    socket.emit("drawOffered", {
+      by: capitalize(game.drawOffer.by),
+      color: game.drawOffer.by === "white" ? "w" : "b",
+      message: `${capitalize(game.drawOffer.by)} offers a draw`,
+    });
+  }
+
+  const opponent = opponentSocketId(game, color);
+  if (opponent) {
+    io.to(opponent).emit("opponentReconnected", {
+      color: capitalize(color),
+      message: `${capitalize(color)} reconnected`,
     });
   }
 };
 
+/** Only resume a game for this user if *their own* side is marked disconnected. */
+const tryReconnect = (socket, io) => {
+  const userId = getUserId(socket);
+  if (!userId) return;
+
+  const game = gameManager.getGameByUserId(userId);
+  if (!game || game.isFinished) return;
+  const color = gameManager.getColorForUser(game, userId);
+  if (!color || !game.disconnectState[color]) return;
+
+  const result = gameManager.reconnectPlayer(userId, socket.id);
+  if (!result) return;
+
+  socket.join(game.id);
+  syncReconnectingPlayer(socket, game, result.reconnectedColor, io);
+  logger.info(`User ${socket.user?.username} reconnected to game ${game.id}`);
+};
+
 module.exports = (io) => {
   io.on("connection", (socket) => {
-    logger.info(`Game socket connected: ${socket.user?.username} (${socket.id})`);
+    tryReconnect(socket, io);
 
-    const userId = socket.user?._id || socket.user?.id;
-    if (userId) {
-      const existingGame = gameManager.getGameByUserId(userId);
-      const shouldReconnect =
-        existingGame &&
-        !existingGame.isFinished &&
-        (existingGame.disconnectState?.white || existingGame.disconnectState?.black);
-
-      if (shouldReconnect) {
-        const reconnectResult = gameManager.reconnectPlayer(userId, socket.id);
-        if (reconnectResult) {
-          const { game, reconnectedColor } = reconnectResult;
-          socket.join(game.id);
-          syncReconnectingPlayer(socket, game, reconnectedColor, io);
-          logger.info(`User ${socket.user?.username} reconnected to game ${game.id}`);
-        }
-      }
-    }
-
-    // Handle chess moves
     socket.on("move", async (moveData) => {
       try {
-        const game = gameManager.getGameBySocket(socket.id);
+        const ctx = getPlayerContext(socket);
+        if (!ctx) return socket.emit("error", { message: "No active game" });
+        const { game, color } = ctx;
 
-        if (!game) {
-          return socket.emit("error", { message: "Game not found" });
-        }
-
-        // Verify it's the player's turn
-        const currentTurn = game.chess.turn();
-        const isWhitePlayer = game.players.white === socket.id;
-        const isBlackPlayer = game.players.black === socket.id;
-
-        if (
-          (currentTurn === "w" && !isWhitePlayer) ||
-          (currentTurn === "b" && !isBlackPlayer)
-        ) {
+        if (game.chess.turn() !== color.charAt(0)) {
           return socket.emit("error", { message: "Not your turn" });
         }
 
-        // Attempt the move
-        const move = game.chess.move(moveData);
+        const input = parseMoveInput(moveData);
+        if (!input) return socket.emit("error", { message: "Invalid move" });
 
-        if (!move) {
-          return socket.emit("error", { message: "Invalid move" });
-        }
-
-        applyMoveEffects(game, move, io);
-
-        // Broadcast the move to opponent only (not back to sender)
-        socket.to(game.id).emit("move", move);
-
-        // But broadcast boardstate and history to all players including sender
-        emitBoardState(game, io);
-
-        updateGameRecord(game);
-
-        // Check for game end conditions
-        const gameEnded = await processGameOverIfNeeded(game, io);
-        if (!gameEnded) {
-          maybeScheduleBotMove(game, io);
+        const result = await playMove(game, io, input, { excludeSocketId: socket.id });
+        if (!result.ok) {
+          socket.emit("error", { message: result.error });
+          socket.emit("boardstate", game.chess.fen());
         }
       } catch (error) {
-        console.error("Move error:", error);
+        logger.error({ err: error }, "Move handling failed");
         socket.emit("error", { message: "Failed to process move" });
       }
     });
 
     socket.on("chatMessage", (payload = {}) => {
-      const game = gameManager.getGameBySocket(socket.id);
-
-      if (!game || game.isFinished) {
-        return;
-      }
-
-      if (game.isBotGame) {
+      const ctx = getPlayerContext(socket, { requireActive: false });
+      if (!ctx) return;
+      if (ctx.game.isBotGame) {
         socket.emit("chatError", {
           message: "Chat is only available in online matches.",
         });
         return;
       }
 
-      const isParticipant =
-        game.players.white === socket.id || game.players.black === socket.id;
+      const message = sanitizeChatMessage(payload?.message);
+      if (!message) return;
 
-      if (!isParticipant) {
-        return;
-      }
-
-      const message = sanitizeChatMessage(payload.message);
-      if (!message) {
-        return;
-      }
-
-      const isWhitePlayer = game.players.white === socket.id;
-      io.to(game.id).emit("chatMessage", {
+      io.to(ctx.game.id).emit("chatMessage", {
         message,
         sender: {
           id: socket.id,
           name: socket.user?.displayName || socket.user?.username || "Player",
-          color: isWhitePlayer ? "w" : "b",
+          color: ctx.color.charAt(0),
         },
         sentAt: Date.now(),
       });
     });
 
-    // Handle resignation
     socket.on("resign", async () => {
       try {
-        const game = gameManager.getGameBySocket(socket.id);
-
-        if (!game) return;
-
-        const isWhitePlayer = game.players.white === socket.id;
-        const result = isWhitePlayer ? "black" : "white";
-        const resigningColor = isWhitePlayer ? "White" : "Black";
-        const winnerColor = isWhitePlayer ? "Black" : "White";
+        const ctx = getPlayerContext(socket);
+        if (!ctx) return;
+        const { game, color } = ctx;
+        const reason = `${capitalize(color)} resigned`;
 
         stats.resignations++;
-
-        io.to(game.id).emit("gameResigned", {
-          resignedBy: resigningColor,
-          resignedColor: isWhitePlayer ? "w" : "b",
-          winner: isWhitePlayer ? "b" : "w",
-          message: `${resigningColor} resigned`,
+        await endGame(game, io, {
+          result: opposite(color),
+          reason,
+          events: [
+            [
+              "gameResigned",
+              {
+                resignedBy: capitalize(color),
+                resignedColor: color.charAt(0),
+                winner: opposite(color).charAt(0),
+                message: reason,
+              },
+            ],
+          ],
         });
-
-        await handleGameEnd(game, io, result, `${resigningColor} resigned`);
       } catch (error) {
-        console.error("Resignation error:", error);
+        logger.error({ err: error }, "Resignation failed");
       }
     });
 
-    // Handle draw offer
     socket.on("offerDraw", () => {
-      const game = gameManager.getGameBySocket(socket.id);
-
-      if (!game) return;
+      const ctx = getPlayerContext(socket);
+      if (!ctx) return;
+      const { game, color } = ctx;
 
       if (game.isBotGame) {
         setTimeout(() => {
@@ -366,102 +182,123 @@ module.exports = (io) => {
         return;
       }
 
-      const isWhitePlayer = game.players.white === socket.id;
-      const opponent = isWhitePlayer ? game.players.black : game.players.white;
-      const offeringColor = isWhitePlayer ? "White" : "Black";
+      if (game.drawOffer) {
+        socket.emit("error", { message: "A draw offer is already pending" });
+        return;
+      }
 
-      io.to(opponent).emit("drawOffered", {
-        by: offeringColor,
-        message: `${offeringColor} offers a draw`,
-      });
+      const ply = game.moveHistory.length;
+      const lastOffer = game.lastDrawOfferPly[color];
+      if (lastOffer !== null && ply - lastOffer < DRAW_OFFER_PLY_GAP) {
+        socket.emit("error", {
+          message: "Please wait a few moves before offering again",
+        });
+        return;
+      }
+
+      game.drawOffer = { by: color };
+      game.lastDrawOfferPly[color] = ply;
+      emitDrawOfferState(game, io);
+
+      const opponent = opponentSocketId(game, color);
+      if (opponent) {
+        io.to(opponent).emit("drawOffered", {
+          by: capitalize(color),
+          color: color.charAt(0),
+          message: `${capitalize(color)} offers a draw`,
+        });
+      }
     });
 
-    // Handle draw acceptance
     socket.on("acceptDraw", async () => {
-      const game = gameManager.getGameBySocket(socket.id);
+      try {
+        const ctx = getPlayerContext(socket);
+        if (!ctx) return;
+        const { game, color } = ctx;
 
-      if (!game) return;
+        // Only the opponent of a pending offer can accept it.
+        if (game.isBotGame || !game.drawOffer || game.drawOffer.by === color) return;
 
-      if (game.isBotGame) {
-        return;
+        await endGame(game, io, {
+          result: "draw",
+          reason: "Draw by agreement",
+          events: [
+            [
+              "drawAccepted",
+              { color: color.charAt(0), message: "Draw accepted by both players" },
+            ],
+          ],
+        });
+      } catch (error) {
+        logger.error({ err: error }, "Draw acceptance failed");
       }
-
-      const isWhitePlayer = game.players.white === socket.id;
-      const acceptingColor = isWhitePlayer ? "w" : "b";
-
-      io.to(game.id).emit("drawAccepted", {
-        color: acceptingColor,
-        message: "Draw accepted by both players",
-      });
-      await handleGameEnd(game, io, "draw", "Draw by agreement");
     });
 
-    // Handle draw decline
     socket.on("declineDraw", () => {
-      const game = gameManager.getGameBySocket(socket.id);
+      const ctx = getPlayerContext(socket);
+      if (!ctx) return;
+      const { game, color } = ctx;
+      if (game.isBotGame || !game.drawOffer || game.drawOffer.by === color) return;
 
-      if (!game) return;
-
-      if (game.isBotGame) {
-        return;
+      const offeredBy = game.drawOffer.by;
+      game.drawOffer = null;
+      emitDrawOfferState(game, io);
+      const offerer = game.players[offeredBy];
+      if (gameManager.isSocketPlayer(offerer)) {
+        io.to(offerer).emit("drawDeclined", {
+          color: color.charAt(0),
+          message: "Draw offer declined",
+        });
       }
-
-      const isWhitePlayer = game.players.white === socket.id;
-      const opponent = isWhitePlayer ? game.players.black : game.players.white;
-      const decliningColor = isWhitePlayer ? "w" : "b";
-
-      io.to(opponent).emit("drawDeclined", {
-        color: decliningColor,
-        message: "Draw offer declined",
-      });
     });
 
-    // Handle disconnect during game
-    socket.on("disconnect", async () => {
+    // The offering player takes their pending offer back.
+    socket.on("withdrawDraw", () => {
+      const ctx = getPlayerContext(socket);
+      if (!ctx) return;
+      const { game, color } = ctx;
+      if (!game.drawOffer || game.drawOffer.by !== color) return;
+
+      game.drawOffer = null;
+      emitDrawOfferState(game, io);
+      const opponent = opponentSocketId(game, color);
+      if (opponent) {
+        io.to(opponent).emit("drawOfferWithdrawn", {
+          message: `${capitalize(color)} withdrew the draw offer`,
+        });
+      }
+    });
+
+    socket.on("disconnect", () => {
       const game = gameManager.getGameBySocket(socket.id);
+      if (!game || game.isFinished) return;
+      const color = gameManager.getColorForSocket(game, socket.id);
+      if (!color) return;
 
-      if (game) {
-        if (game.isBotGame) {
-          timerManager.stopTimer(game);
-          gameManager.cleanupGame(game.id);
-          return;
-        }
+      gameManager.markPlayerDisconnected(game, color);
+      gameManager.socketToGame.delete(socket.id);
 
-        const isWhitePlayer = game.players.white === socket.id;
-        const disconnectedColor = isWhitePlayer ? "white" : "black";
-        const opponentColor = isWhitePlayer ? "black" : "white";
-        const opponent = game.players[opponentColor];
-
-        gameManager.markPlayerDisconnected(game, disconnectedColor);
-        if (gameManager.isSocketPlayer(socket.id)) {
-          gameManager.socketToGame.delete(socket.id);
-        }
-
-        if (gameManager.isSocketPlayer(opponent)) {
-          io.to(opponent).emit("opponentDisconnected", {
-            message: `${disconnectedColor === "white" ? "White" : "Black"} disconnected`,
-          });
-        }
-
-        game.disconnectTimers[disconnectedColor] = setTimeout(async () => {
-          const stillExists = gameManager.games.has(game.id);
-          if (stillExists && game.disconnectState?.[disconnectedColor]) {
-            const result = isWhitePlayer ? "black" : "white";
-            io.to(game.id).emit(
-              "gameMessage",
-              `${disconnectedColor === "white" ? "White" : "Black"} abandoned the game`,
-            );
-            await handleGameEnd(
-              game,
-              io,
-              result,
-              `${disconnectedColor === "white" ? "White" : "Black"} disconnected`,
-            );
-          }
-        }, 30000);
+      const opponent = opponentSocketId(game, color);
+      if (opponent) {
+        io.to(opponent).emit("opponentDisconnected", {
+          color: capitalize(color),
+          message: `${capitalize(color)} disconnected`,
+        });
       }
 
-      logger.info(`Player disconnected: ${socket.user?.username} (${socket.id})`);
+      game.disconnectTimers[color] = setTimeout(() => {
+        if (game.isFinished || !game.disconnectState[color]) return;
+        io.to(game.id).emit("gameMessage", `${capitalize(color)} abandoned the game`);
+        endGame(game, io, {
+          result: opposite(color),
+          reason: `${capitalize(color)} abandoned the game`,
+          status: "abandoned",
+        }).catch((err) => logger.error({ err }, "Abandon handling failed"));
+      }, DISCONNECT_GRACE_MS);
+
+      logger.info(
+        `Player disconnected mid-game: ${socket.user?.username} (${socket.id})`,
+      );
     });
   });
 };

@@ -1,57 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Register - Chess Game</title>
-    <link rel="icon" href="/images/favicon.png" />
-    <link rel="stylesheet" href="/stylesheets/style.css" />
+    <%- include('partials/head', { title: 'Create account' }) %>
   </head>
   <body>
-    <div class="page-grid"></div>
-    <div id="small-device-screen" style="display: none">
-      <div class="small-device-content">
-        <h1>Desktop Screen Required</h1>
-        <p>This chess experience is built for larger screens.</p>
-        <p>Please open it on a laptop or desktop for the full match view.</p>
-      </div>
-    </div>
+    <%- include('partials/small-device') %>
 
-    <main id="desktop-app" class="page-shell">
-      <div class="container split-layout">
-        <section class="auth-hero">
-          <span class="eyebrow">Build your identity</span>
-          <h1 class="headline">Create a profile that feels tournament ready.</h1>
-          <p>
-            Register once, save your rating, personalize the board, and make
-            every match feel like part of a real progression instead of a
-            throwaway session.
-          </p>
+    <main id="desktop-app" class="auth-page">
+      <div class="auth-shell">
+        <%- include('partials/auth-pitch') %>
 
-          <div class="auth-metrics">
-            <div class="metric-card">
-              <strong>Saved</strong>
-              <span>Keep wins, losses, draws, and rating tied to your account.</span>
-            </div>
-            <div class="metric-card">
-              <strong>Styled</strong>
-              <span>Choose colors that make your board instantly yours.</span>
-            </div>
-            <div class="metric-card">
-              <strong>Ready</strong>
-              <span>Move from registration to your first match in seconds.</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="auth-card panel-card">
-          <div style="display: flex; justify-content: flex-end; margin-bottom: 12px">
-            <a href="/" class="btn btn-ghost">Home</a>
-          </div>
-          <div>
-            <h2>Create account</h2>
-            <p>Start building your chess profile.</p>
-          </div>
+        <section class="auth-card card" aria-labelledby="auth-title">
+          <h2 id="auth-title">Create your account</h2>
+          <p class="auth-lede">Get a rating, save your games and customise your board.</p>
 
           <% if (error) { %>
           <div class="flash flash-error" role="alert"><%= error %></div>
@@ -68,22 +29,26 @@
                 required
                 minlength="3"
                 maxlength="20"
+                pattern="[A-Za-z0-9_-]+"
+                title="Letters, numbers, underscores and hyphens only"
+                autocomplete="username"
                 class="field-input"
-                placeholder="Choose a username"
+                aria-describedby="username-help"
               />
-              <div class="field-help">3-20 characters</div>
+              <div id="username-help" class="field-help">3–20 letters, numbers, _ or -</div>
             </div>
 
             <div class="field-group">
-              <label for="email" class="field-label">Email Address</label>
+              <label for="email" class="field-label">Email</label>
               <input
                 type="email"
                 id="email"
                 name="email"
                 value="<%= email %>"
                 required
+                autocomplete="email"
                 class="field-input"
-                placeholder="your@email.com"
+                placeholder="you@example.com"
               />
             </div>
 
@@ -94,20 +59,21 @@
                 id="password"
                 name="password"
                 required
-                minlength="6"
+                minlength="8"
+                maxlength="72"
+                autocomplete="new-password"
                 class="field-input"
-                placeholder="Create a password"
+                aria-describedby="password-help"
               />
-              <div class="field-help">Minimum 6 characters</div>
+              <div id="password-help" class="field-help">At least 8 characters</div>
             </div>
 
-            <button type="submit" class="btn btn-primary">Create Account</button>
+            <button type="submit" class="btn btn-primary btn-lg btn-block">Create account</button>
           </form>
 
-          <div class="auth-footer">
-            Already have an account?
-            <a href="/auth/login">Sign in here</a>
-          </div>
+          <p class="auth-footer">
+            Already have an account? <a href="/auth/login">Sign in</a>
+          </p>
         </section>
       </div>
     </main>

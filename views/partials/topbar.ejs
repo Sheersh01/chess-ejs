@@ -1,0 +1,56 @@
+<%
+  const navItems = [
+    { href: '/', label: 'Play', key: 'play' },
+    { href: '/leaderboard', label: 'Leaderboard', key: 'leaderboard' },
+    { href: '/games', label: 'My Games', key: 'games' },
+    { href: '/profile', label: 'Profile', key: 'profile' },
+  ];
+  const current = typeof active !== 'undefined' ? active : '';
+  const displayName = user.displayName || user.username;
+%>
+<a class="skip-link" href="#main-content">Skip to content</a>
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="/" data-nav-guard>
+      <img class="brand-mark" src="/images/pieces/wK.svg" alt="" width="36" height="36" />
+      Chess
+    </a>
+
+    <nav class="nav" aria-label="Main">
+      <% navItems.forEach((item) => { %>
+      <a
+        href="<%= item.href %>"
+        class="nav-link"
+        data-nav-guard
+        <%- current === item.key ? 'aria-current="page"' : '' %>
+      ><%= item.label %></a>
+      <% }) %>
+    </nav>
+
+    <div class="topbar-actions">
+      <div class="user-chip" title="<%= displayName %>">
+        <span class="avatar" aria-hidden="true"><%= displayName.charAt(0) %></span>
+        <span class="user-chip-text">
+          <span class="user-chip-name"><%= displayName %></span>
+          <span class="user-chip-meta">
+            <span class="sr-only">Rating</span>
+            <span id="user-rating-value"><%= user.rating %></span>
+            <% if (user.isGuest) { %> · Guest<% } else { %> · <%= user.wins %>W <%= user.losses %>L <%= user.draws %>D<% } %>
+          </span>
+        </span>
+      </div>
+      <button
+        type="button"
+        id="settings-button"
+        class="btn btn-quiet btn-icon"
+        aria-label="Settings"
+        title="Settings"
+      >⚙</button>
+      <form action="/auth/logout" method="POST" class="nav-form">
+        <button type="submit" class="btn btn-ghost btn-sm" data-nav-guard>
+          <%= user.isGuest ? 'Exit' : 'Log out' %>
+        </button>
+      </form>
+    </div>
+  </div>
+</header>

@@ -1,30 +1,18 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Game = require("../models/Game");
 const gameManager = require("../game/gameManager");
 const gameStats = require("../stats/gameStats");
-
-const serializeUser = (user) => ({
-  id: user._id || user.id,
-  username: user.username,
-  displayName: user.displayName || user.username,
-  email: user.email,
-  rating: user.rating,
-  gamesPlayed: user.gamesPlayed,
-  wins: user.wins,
-  losses: user.losses,
-  draws: user.draws,
-  winStreak: user.winStreak,
-  bestWinStreak: user.bestWinStreak,
-  settings: user.settings,
-  isGuest: user.isGuest || false,
-  gameHistory: user.gameHistory,
-});
+const { serializeUser } = require("../services/authService");
 
 exports.getMe = async (req, res) => {
-  res.json({ success: true, data: serializeUser(req.user) });
+  res.json({ success: true, data: serializeUser(req.user, { includePrivate: true }) });
 };
 
 exports.getUserById = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, error: "Invalid user id" });
+  }
   try {
     const user = await User.findById(req.params.id).select("-password");
     if (!user) {
@@ -51,7 +39,7 @@ exports.getUserById = async (req, res) => {
 exports.getLeaderboard = async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
-    const users = await User.find()
+    const users = await User.find({ gamesPlayed: { $gt: 0 } })
       .select("username displayName rating wins losses draws gamesPlayed")
       .sort({ rating: -1 })
       .limit(limit);

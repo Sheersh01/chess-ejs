@@ -1,42 +1,25 @@
 const gameManager = require("../game/gameManager");
-const timerManager = require("../game/timerManager");
 const botManager = require("../game/botManager");
+const { startGameClock, buildGameInfo } = require("../game/gameLifecycle");
+const { scheduleBotMove } = require("../game/moveService");
+const { normalizeTimeControl } = require("../game/timeControls");
+const { MatchmakingQueue } = require("../game/matchmakingQueue");
 const { createGameRecord } = require("../services/gamePersistence");
+const { isDbReady } = require("../config/database");
+const User = require("../models/User");
 const logger = require("../config/logger");
 
-// Matchmaking queue - stores waiting players
-const matchmakingQueue = [];
 const BOT_SOCKET_ID = "bot_engine";
 const BOT_USER_ID = "bot_engine";
 const BOT_USERNAME = "Chess Bot";
-const toUserKey = (userId) => String(userId);
+const BOT_DISPLAY_RATING = 1200;
+const COUNTDOWN_SECONDS = Number(process.env.COUNTDOWN_SECONDS ?? 3);
+const COUNTDOWN_TICK_MS = Number(process.env.COUNTDOWN_TICK_MS) || 1000;
+const SWEEP_INTERVAL_MS = 2000;
 
-const isSameUser = (playerA, playerB) =>
-  toUserKey(playerA.userId) === toUserKey(playerB.userId);
+const queue = new MatchmakingQueue();
 
-const removePlayerFromQueue = (socketId) => {
-  const index = matchmakingQueue.findIndex((player) => player.socketId === socketId);
-  if (index === -1) {
-    return false;
-  }
-
-  matchmakingQueue.splice(index, 1);
-  return true;
-};
-
-const isUserQueued = (userId) =>
-  matchmakingQueue.some((player) => toUserKey(player.userId) === toUserKey(userId));
-
-const isUserInActiveGame = (userId) => {
-  const userKey = toUserKey(userId);
-
-  return Array.from(gameManager.games.values()).some(
-    (game) =>
-      !game.isFinished &&
-      (toUserKey(game.userIds.white) === userKey ||
-        toUserKey(game.userIds.black) === userKey),
-  );
-};
+const getUserId = (socket) => socket.user?._id || socket.user?.id;
 
 const normalizeColorPreference = (value) => {
   if (value === "white" || value === "w") return "w";
@@ -44,244 +27,149 @@ const normalizeColorPreference = (value) => {
   return "random";
 };
 
-const canMatchColors = (playerA, playerB) => {
-  const colorA = playerA.colorPreference || "random";
-  const colorB = playerB.colorPreference || "random";
-
-  if (colorA === "random" || colorB === "random") {
-    return true;
-  }
-
-  return colorA !== colorB;
-};
-
 const assignColors = (player1, player2) => {
-  const preference1 = player1.colorPreference || "random";
-  const preference2 = player2.colorPreference || "random";
-
-  if (preference1 === "w") {
+  const pref1 = player1.colorPreference || "random";
+  const pref2 = player2.colorPreference || "random";
+  if (pref1 === "w" || pref2 === "b")
     return { whitePlayer: player1, blackPlayer: player2 };
-  }
-
-  if (preference1 === "b") {
+  if (pref1 === "b" || pref2 === "w")
     return { whitePlayer: player2, blackPlayer: player1 };
-  }
-
-  if (preference2 === "w") {
-    return { whitePlayer: player2, blackPlayer: player1 };
-  }
-
-  if (preference2 === "b") {
-    return { whitePlayer: player1, blackPlayer: player2 };
-  }
-
   return Math.random() < 0.5
     ? { whitePlayer: player1, blackPlayer: player2 }
     : { whitePlayer: player2, blackPlayer: player1 };
 };
 
-const parseBotSettings = (input = {}) => {
-  const difficulty = botManager.normalizeDifficulty(input.difficulty);
-  const personality = botManager.normalizePersonality(input.personality);
-  const difficultyConfig = botManager.getDifficultyConfig(difficulty);
+const playerMeta = (player) => ({
+  username: player.username,
+  displayName: player.displayName || player.username,
+});
 
-  return {
-    difficulty,
-    personality,
-    depth: difficultyConfig.depth,
-    thinkTimeMs: difficultyConfig.thinkTimeMs,
-  };
+const BOT_META = { username: BOT_USERNAME, displayName: BOT_USERNAME };
+
+/** Ratings change after every game; never trust the value cached at connect time. */
+const refreshRating = async (socket) => {
+  const userId = getUserId(socket);
+  if (socket.user?.isGuest || !isDbReady() || !gameManager.isRegisteredUserId(userId)) {
+    return socket.user?.rating ?? 1200;
+  }
+  const fresh = await User.findById(userId).select("rating").lean();
+  if (fresh) socket.user.rating = fresh.rating;
+  return socket.user.rating;
 };
 
-const emitOpeningBotMoveIfNeeded = (game, io) => {
-  if (!game?.isBotGame || !game.bot || game.bot.color !== "w") {
-    return;
+const buildPlayer = (socket, payload, rating) => ({
+  socketId: socket.id,
+  userId: getUserId(socket),
+  username: socket.user.username,
+  displayName: socket.user.displayName || socket.user.username,
+  rating,
+  colorPreference: normalizeColorPreference(payload.colorPreference),
+  timeControl: normalizeTimeControl(payload.timeControl),
+  joinedAt: Date.now(),
+});
+
+const blockedReason = (socket, userId) => {
+  if (gameManager.isUserInActiveGame(userId)) {
+    return "This account is already playing a game in another tab or window.";
   }
-
-  const delay = game.bot.thinkTimeMs || 500;
-
-  const timeoutId = setTimeout(() => {
-    try {
-      const activeGame = gameManager.games.get(game.id);
-      if (
-        !activeGame ||
-        activeGame.chess.turn() !== "w" ||
-        activeGame.chess.isGameOver()
-      ) {
-        return;
-      }
-
-      const botMoveInput = botManager.getBotMove(activeGame.chess, {
-        difficulty: activeGame.bot?.difficulty,
-        personality: activeGame.bot?.personality,
-        botColor: activeGame.bot?.color,
-      });
-
-      if (!botMoveInput) {
-        return;
-      }
-
-      const botMove = activeGame.chess.move({
-        from: botMoveInput.from,
-        to: botMoveInput.to,
-        promotion: botMoveInput.promotion,
-      });
-
-      if (!botMove) {
-        return;
-      }
-
-      activeGame.moveHistory.push(botMove);
-
-      io.to(activeGame.id).emit("move", botMove);
-      io.to(activeGame.id).emit("boardstate", activeGame.chess.fen());
-      io.to(activeGame.id).emit("moveHistory", activeGame.moveHistory);
-      io.to(activeGame.id).emit("turnChange", activeGame.chess.turn());
-      timerManager.syncToCurrentTurn(activeGame, io);
-    } finally {
-      if (game.bot?.pendingMoveTimeout === timeoutId) {
-        game.bot.pendingMoveTimeout = null;
-      }
-    }
-  }, delay);
-
-  game.bot.pendingMoveTimeout = timeoutId;
-};
-
-// Helper function to find match with rating-based matchmaking
-const findMatch = (newPlayer) => {
-  const RATING_RANGE = 200; // Players within 200 rating points can be matched
-
-  for (let i = 0; i < matchmakingQueue.length; i++) {
-    const waitingPlayer = matchmakingQueue[i];
-
-    // Don't match with yourself
-    if (
-      waitingPlayer.socketId === newPlayer.socketId ||
-      isSameUser(waitingPlayer, newPlayer)
-    ) {
-      continue;
-    }
-
-    // Check if ratings are within acceptable range
-    const ratingDiff = Math.abs(waitingPlayer.rating - newPlayer.rating);
-    if (ratingDiff <= RATING_RANGE && canMatchColors(waitingPlayer, newPlayer)) {
-      // Remove matched player from queue
-      matchmakingQueue.splice(i, 1);
-      return waitingPlayer;
-    }
+  if (queue.hasUser(userId) && !queue.hasSocket(socket.id)) {
+    return "This account is already searching for a match in another tab or window.";
   }
-
   return null;
 };
 
-// Helper function to start game between two players
-const startGame = (io, player1, player2) => {
-  const { whitePlayer, blackPlayer } = assignColors(player1, player2);
+/** Countdown, then persist the record and start the clock (and the bot, if any). */
+const runCountdown = (io, game, room) => {
+  io.to(room).emit("gameInfo", buildGameInfo(game));
+  io.to(room).emit("startCountdown");
+  let countdown = COUNTDOWN_SECONDS;
 
-  // Create the game
+  game.countdownInterval = setInterval(async () => {
+    if (game.isFinished) {
+      clearInterval(game.countdownInterval);
+      game.countdownInterval = null;
+      return;
+    }
+
+    io.to(room).emit("countdownTick", countdown);
+    countdown--;
+    if (countdown >= 0) return;
+
+    clearInterval(game.countdownInterval);
+    game.countdownInterval = null;
+
+    await createGameRecord(game);
+    if (game.isFinished) return;
+
+    startGameClock(game, io);
+    io.to(game.id).emit("gameStart");
+    io.to(game.id).emit("boardstate", game.chess.fen());
+    io.to(game.id).emit("turnChange", game.chess.turn());
+    scheduleBotMove(game, io);
+
+    const white = game.playerMeta.white.username;
+    const black = game.playerMeta.black.username;
+    logger.info(
+      { gameId: game.id, timeControl: game.clock.timeControl },
+      `Game started: ${white} (white) vs ${black} (black)`,
+    );
+  }, COUNTDOWN_TICK_MS);
+};
+
+const startGame = (io, player1, player2) => {
+  const socket1 = io.sockets.sockets.get(player1.socketId);
+  const socket2 = io.sockets.sockets.get(player2.socketId);
+  if (!socket1 || !socket2) {
+    // Someone left between pairing and start: put the other player back in line.
+    const stillHere = socket1 ? player1 : socket2 ? player2 : null;
+    if (stillHere) queue.add(stillHere);
+    return null;
+  }
+
+  const { whitePlayer, blackPlayer } = assignColors(player1, player2);
   const game = gameManager.createGame(
     whitePlayer.socketId,
     blackPlayer.socketId,
     whitePlayer.userId,
     blackPlayer.userId,
     {
-      playerMeta: {
-        white: {
-          username: whitePlayer.username,
-          displayName: whitePlayer.displayName || whitePlayer.username,
-        },
-        black: {
-          username: blackPlayer.username,
-          displayName: blackPlayer.displayName || blackPlayer.username,
-        },
-      },
-      initialRatings: {
-        white: whitePlayer.rating,
-        black: blackPlayer.rating,
-      },
+      playerMeta: { white: playerMeta(whitePlayer), black: playerMeta(blackPlayer) },
+      initialRatings: { white: whitePlayer.rating, black: blackPlayer.rating },
+      timeControl: whitePlayer.timeControl,
     },
   );
 
-  // Assign player roles
   io.to(whitePlayer.socketId).emit("playerRole", "w");
   io.to(blackPlayer.socketId).emit("playerRole", "b");
-
-  // Join both players to game room
-  io.sockets.sockets.get(whitePlayer.socketId)?.join(game.id);
-  io.sockets.sockets.get(blackPlayer.socketId)?.join(game.id);
-
-  // Notify players about countdown
-  io.to(game.id).emit("startCountdown");
-
-  // Countdown from 3
-  let countdown = 3;
-  const countdownInterval = setInterval(() => {
-    io.to(game.id).emit("countdownTick", countdown);
-    countdown--;
-
-    if (countdown < 0) {
-      clearInterval(countdownInterval);
-
-      // Start the game
-      io.to(game.id).emit("gameStart");
-      io.to(game.id).emit("boardstate", game.chess.fen());
-      io.to(game.id).emit("turnChange", game.chess.turn());
-
-      // Start game timers
-      timerManager.startTimer(game, io);
-
-      createGameRecord(game);
-
-      logger.info(
-        `Game ${game.id} started between ${whitePlayer.username} (white) and ${blackPlayer.username} (black)`,
-      );
-    }
-  }, 1000);
+  socket1.join(game.id);
+  socket2.join(game.id);
+  runCountdown(io, game, game.id);
+  return game;
 };
 
-const startBotGame = (io, player, settings) => {
+const startBotGame = (io, socket, player, settings) => {
   const humanColor =
-    settings.colorPreference === "w"
-      ? "w"
-      : settings.colorPreference === "b"
-        ? "b"
-        : Math.random() < 0.5
-          ? "w"
-          : "b";
+    player.colorPreference === "w" || player.colorPreference === "b"
+      ? player.colorPreference
+      : Math.random() < 0.5
+        ? "w"
+        : "b";
   const botColor = humanColor === "w" ? "b" : "w";
+  const humanIsWhite = humanColor === "w";
 
   const game = gameManager.createGame(
-    humanColor === "w" ? player.socketId : BOT_SOCKET_ID,
-    humanColor === "w" ? BOT_SOCKET_ID : player.socketId,
-    humanColor === "w" ? player.userId : BOT_USER_ID,
-    humanColor === "w" ? BOT_USER_ID : player.userId,
+    humanIsWhite ? player.socketId : BOT_SOCKET_ID,
+    humanIsWhite ? BOT_SOCKET_ID : player.socketId,
+    humanIsWhite ? player.userId : BOT_USER_ID,
+    humanIsWhite ? BOT_USER_ID : player.userId,
     {
       playerMeta: {
-        white:
-          humanColor === "w"
-            ? {
-                username: player.username,
-                displayName: player.displayName || player.username,
-              }
-            : {
-                username: BOT_USERNAME,
-                displayName: BOT_USERNAME,
-              },
-        black:
-          humanColor === "w"
-            ? {
-                username: BOT_USERNAME,
-                displayName: BOT_USERNAME,
-              }
-            : {
-                username: player.username,
-                displayName: player.displayName || player.username,
-              },
+        white: humanIsWhite ? playerMeta(player) : BOT_META,
+        black: humanIsWhite ? BOT_META : playerMeta(player),
       },
       initialRatings: {
-        white: humanColor === "w" ? player.rating : 1200,
-        black: humanColor === "w" ? 1200 : player.rating,
+        white: humanIsWhite ? player.rating : BOT_DISPLAY_RATING,
+        black: humanIsWhite ? BOT_DISPLAY_RATING : player.rating,
       },
       isBotGame: true,
       botColor,
@@ -289,155 +177,110 @@ const startBotGame = (io, player, settings) => {
       difficulty: settings.difficulty,
       personality: settings.personality,
       thinkTimeMs: settings.thinkTimeMs,
+      timeControl: player.timeControl,
     },
   );
 
-  io.to(player.socketId).emit("playerRole", humanColor);
-
-  io.sockets.sockets.get(player.socketId)?.join(game.id);
-
-  io.to(player.socketId).emit("startCountdown");
-
-  let countdown = 3;
-  const countdownInterval = setInterval(() => {
-    io.to(player.socketId).emit("countdownTick", countdown);
-    countdown--;
-
-    if (countdown < 0) {
-      clearInterval(countdownInterval);
-
-      io.to(player.socketId).emit("gameStart");
-      io.to(player.socketId).emit("boardstate", game.chess.fen());
-      io.to(player.socketId).emit("turnChange", game.chess.turn());
-
-      timerManager.startTimer(game, io);
-      emitOpeningBotMoveIfNeeded(game, io);
-
-      createGameRecord(game);
-
-      logger.info(
-        `Bot game ${game.id} started for ${player.username} [${settings.difficulty}/${settings.personality}]`,
-      );
-    }
-  }, 1000);
+  socket.emit("playerRole", humanColor);
+  socket.join(game.id);
+  runCountdown(io, game, game.id);
+  return game;
 };
 
-module.exports = (io) => {
+const register = (io) => {
+  const sweepTimer = setInterval(() => {
+    const pairs = queue.sweep((socketId) => io.sockets.sockets.has(socketId));
+    for (const [a, b] of pairs) {
+      logger.info(`Match found after waiting: ${a.username} vs ${b.username}`);
+      startGame(io, a, b);
+    }
+  }, SWEEP_INTERVAL_MS);
+  sweepTimer.unref?.();
+
   io.on("connection", (socket) => {
-    logger.info(`Player connected: ${socket.user?.username} (${socket.id})`);
+    socket.on("findMatch", async (payload = {}) => {
+      try {
+        const userId = getUserId(socket);
+        if (queue.hasSocket(socket.id)) {
+          socket.emit("waitingForMatch");
+          return;
+        }
 
-    socket.on("findMatch", (payload = {}) => {
-      const userId = socket.user._id || socket.user.id;
+        let reason = blockedReason(socket, userId);
+        if (reason) {
+          socket.emit("matchmakingBlocked", { message: reason });
+          return;
+        }
 
-      if (isUserInActiveGame(userId)) {
+        const rating = await refreshRating(socket);
+        // State may have changed while we awaited the database.
+        reason = blockedReason(socket, userId);
+        if (reason || queue.hasSocket(socket.id) || !socket.connected) {
+          if (reason) socket.emit("matchmakingBlocked", { message: reason });
+          return;
+        }
+
+        const player = buildPlayer(socket, payload || {}, rating);
+        const opponent = queue.takeMatchFor(player);
+        if (opponent) {
+          logger.info(`Match found: ${player.username} vs ${opponent.username}`);
+          startGame(io, player, opponent);
+        } else {
+          queue.add(player);
+          socket.emit("waitingForMatch");
+        }
+      } catch (error) {
+        logger.error({ err: error }, "findMatch failed");
         socket.emit("matchmakingBlocked", {
-          message: "This account is already playing a game in another tab or window.",
+          message: "Matchmaking failed, try again.",
         });
-        return;
-      }
-
-      const alreadyQueued = matchmakingQueue.some(
-        (queuedPlayer) => queuedPlayer.socketId === socket.id,
-      );
-
-      if (alreadyQueued) {
-        socket.emit("waitingForMatch");
-        return;
-      }
-
-      if (isUserQueued(userId)) {
-        socket.emit("matchmakingBlocked", {
-          message:
-            "This account is already searching for a match in another tab or window.",
-        });
-        return;
-      }
-
-      const player = {
-        socketId: socket.id,
-        userId,
-        username: socket.user.username,
-        displayName: socket.user.displayName || socket.user.username,
-        rating: socket.user.rating,
-        colorPreference: normalizeColorPreference(payload.colorPreference),
-        joinedAt: Date.now(),
-      };
-
-      const opponent = findMatch(player);
-
-      if (opponent) {
-        logger.info(`Match found: ${player.username} vs ${opponent.username}`);
-        startGame(io, player, opponent);
-      } else {
-        matchmakingQueue.push(player);
-        socket.emit("waitingForMatch");
-        logger.info(
-          `${player.username} added to queue. Queue size: ${matchmakingQueue.length}`,
-        );
       }
     });
 
-    socket.on("playBot", (payload = {}) => {
-      const userId = socket.user._id || socket.user.id;
+    socket.on("playBot", async (payload = {}) => {
+      try {
+        const userId = getUserId(socket);
+        const reason = blockedReason(socket, userId);
+        if (reason) {
+          socket.emit("matchmakingBlocked", { message: reason });
+          return;
+        }
+        queue.remove(socket.id);
 
-      if (isUserInActiveGame(userId)) {
-        socket.emit("matchmakingBlocked", {
-          message: "This account is already playing a game in another tab or window.",
+        const rating = await refreshRating(socket);
+        if (gameManager.isUserInActiveGame(userId) || !socket.connected) return;
+
+        socket.emit("waitingForBotMatch");
+        const difficulty = botManager.normalizeDifficulty(payload?.difficulty);
+        const config = botManager.getDifficultyConfig(difficulty);
+        const player = buildPlayer(socket, payload || {}, rating);
+        startBotGame(io, socket, player, {
+          difficulty,
+          personality: botManager.normalizePersonality(payload?.personality),
+          thinkTimeMs: config.thinkTimeMs,
         });
-        return;
+      } catch (error) {
+        logger.error({ err: error }, "playBot failed");
+        socket.emit("matchmakingBlocked", { message: "Could not start bot game." });
       }
-
-      if (
-        isUserQueued(userId) &&
-        !matchmakingQueue.some((player) => player.socketId === socket.id)
-      ) {
-        socket.emit("matchmakingBlocked", {
-          message:
-            "This account is already searching for a match in another tab or window.",
-        });
-        return;
-      }
-
-      removePlayerFromQueue(socket.id);
-
-      socket.emit("waitingForBotMatch");
-
-      const player = {
-        socketId: socket.id,
-        userId,
-        username: socket.user.username,
-        displayName: socket.user.displayName || socket.user.username,
-        rating: socket.user.rating,
-      };
-
-      const settings = parseBotSettings(payload);
-      settings.colorPreference = normalizeColorPreference(payload.colorPreference);
-      startBotGame(io, player, settings);
     });
 
     socket.on("cancelMatchmaking", () => {
-      const removed = removePlayerFromQueue(socket.id);
-
-      socket.emit("matchmakingCancelled", {
-        cancelled: removed,
-      });
-
-      if (removed) {
-        logger.info(
-          `${socket.user?.username} cancelled matchmaking. Queue size: ${matchmakingQueue.length}`,
-        );
-      }
+      const removed = queue.remove(socket.id);
+      socket.emit("matchmakingCancelled", { cancelled: removed });
     });
 
-    // Handle player disconnect
     socket.on("disconnect", () => {
-      // Remove from matchmaking queue if still waiting
-      const removed = removePlayerFromQueue(socket.id);
-      if (removed) {
-        logger.info(
-          `${socket.user?.username} removed from queue. Queue size: ${matchmakingQueue.length}`,
-        );
-      }
+      queue.remove(socket.id);
     });
   });
+
+  return () => {
+    clearInterval(sweepTimer);
+    queue.clear();
+  };
 };
+
+module.exports = register;
+module.exports.queue = queue;
+module.exports.startGame = startGame;

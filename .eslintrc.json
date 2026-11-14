@@ -8,8 +8,20 @@
   "parserOptions": {
     "ecmaVersion": 2022
   },
-  "ignorePatterns": ["coverage/", "node_modules/", "public/"],
+  "ignorePatterns": ["coverage/", "node_modules/"],
   "rules": {
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["public/javascripts/**/*.js"],
+      "env": { "browser": true, "node": false, "jest": false },
+      "parserOptions": { "sourceType": "module" },
+      "globals": { "io": "readonly" }
+    },
+    {
+      "files": ["public/javascripts/theme-init.js"],
+      "parserOptions": { "sourceType": "script" }
+    }
+  ]
 }

@@ -1,0 +1,51 @@
+<%
+  const backRank = ["R", "N", "B", "Q", "K", "B", "N", "R"];
+%>
+<section class="auth-pitch">
+  <a class="brand" href="/auth/login">
+    <img class="brand-mark" src="/images/pieces/wK.svg" alt="" width="36" height="36" />
+    Chess
+  </a>
+
+  <div class="auth-pitch-body">
+    <div>
+      <h1>Real-time chess, played properly.</h1>
+      <p>Fast matchmaking, fair clocks and every game saved for review.</p>
+      <ul class="feature-points">
+        <li>
+          <span class="feature-check" aria-hidden="true">✓</span>
+          <span><strong>Six time controls</strong> from 1+0 bullet to 15+10 rapid.</span>
+        </li>
+        <li>
+          <span class="feature-check" aria-hidden="true">✓</span>
+          <span><strong>Rated matches</strong> paired by rating, plus an unrated practice bot.</span>
+        </li>
+        <li>
+          <span class="feature-check" aria-hidden="true">✓</span>
+          <span><strong>Game review</strong> to step through any finished game move by move.</span>
+        </li>
+      </ul>
+    </div>
+
+    <figure class="auth-mini">
+      <div class="auth-mini-frame">
+        <div class="auth-mini-board" aria-hidden="true">
+          <% for (let rank = 0; rank < 8; rank++) { %>
+            <% for (let file = 0; file < 8; file++) { %>
+              <span class="auth-sq <%= (rank + file) % 2 === 0 ? "is-light" : "is-dark" %>"></span>
+            <% } %>
+          <% } %>
+          <% backRank.forEach((piece, file) => { %>
+            <img class="auth-mini-piece" src="/images/pieces/b<%= piece %>.svg" alt="" style="--f: <%= file %>; --r: 0" />
+            <img class="auth-mini-piece" src="/images/pieces/w<%= piece %>.svg" alt="" style="--f: <%= file %>; --r: 7" />
+          <% }) %>
+          <% for (let file = 0; file < 8; file++) { %>
+            <img class="auth-mini-piece" src="/images/pieces/bP.svg" alt="" style="--f: <%= file %>; --r: 1" />
+            <img class="auth-mini-piece" src="/images/pieces/wP.svg" alt="" style="--f: <%= file %>; --r: 6" />
+          <% } %>
+        </div>
+      </div>
+      <figcaption>10 min · Rapid · Rated</figcaption>
+    </figure>
+  </div>
+</section>

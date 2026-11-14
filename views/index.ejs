@@ -1,372 +1,302 @@
+<%
+  const displayName = user.displayName || user.username;
+  const timeGroups = [
+    { name: 'Bullet', tone: 'bullet', controls: [['1+0', '1 min']] },
+    { name: 'Blitz', tone: 'blitz', controls: [['3+0', '3 min'], ['3+2', '3 | 2'], ['5+0', '5 min']] },
+    { name: 'Rapid', tone: 'rapid', controls: [['10+0', '10 min'], ['15+10', '15 | 10']] },
+  ];
+  const colors = [
+    { value: 'white', label: 'White' },
+    { value: 'random', label: 'Random' },
+    { value: 'black', label: 'Black' },
+  ];
+%>
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chess.com</title>
-    <link rel="icon" href="/images/favicon.png" />
-    <link rel="stylesheet" href="/stylesheets/style.css" />
+    <%- include('partials/head', { title: 'Play' }) %>
   </head>
   <body
     style="--board-light:<%= user?.settings?.boardLight || '#f0d9b5' %>; --board-dark:<%= user?.settings?.boardDark || '#b58863' %>; --hint-color:<%= user?.settings?.hintColor || '#14551e' %>;"
   >
-    <div class="page-grid"></div>
+    <%- include('partials/small-device') %>
 
-    <div id="small-device-screen" style="display: none">
-      <div class="small-device-content">
-        <h1>Desktop Screen Required</h1>
-        <p>This chess experience is built for larger screens.</p>
-        <p>Please open it on a laptop or desktop for the full match view.</p>
+    <div id="desktop-app">
+      <%- include('partials/topbar', { user, active: 'play' }) %>
+
+      <div id="connection-banner" class="connection-banner" role="status" hidden>
+        Connection lost. Reconnecting…
       </div>
-    </div>
 
-    <div id="desktop-app" class="page-shell">
-      <% if (typeof user !== 'undefined' && user) { %>
-      <header class="app-topbar">
-        <div class="container">
-          <div class="topbar-card">
-            <div class="topbar-glow" aria-hidden="true"></div>
-            <div class="brand-lockup topbar-reveal">
-              <div class="brand-mark">♔</div>
-              <div class="brand-copy">
-                <div class="brand-kicker">
-                  <span class="brand-pulse"></span>
-                  Live lobby
-                </div>
-                <h2><%= user.displayName || user.username %></h2>
-                <p>Queue up for a match, tune your board, and keep the pressure on.</p>
+      <main id="main-content" tabindex="-1">
+        <!-- Lobby ------------------------------------------------------------ -->
+        <section id="landing-screen" class="page">
+          <div class="container">
+            <header class="lobby-greeting">
+              <div>
+                <p class="eyebrow">New game</p>
+                <h1 class="page-title">Ready to play, <%= displayName %>?</h1>
+                <p class="page-subtitle">
+                  Pick a time control and find an opponent, or warm up against the bot.
+                </p>
               </div>
-            </div>
-
-            <div class="topbar-meta topbar-reveal topbar-reveal-delay-1">
-              <div class="player-summary">
-                <div class="status-pill status-pill-strong">
-                  <strong>Rating</strong>
-                  <span id="user-rating-value"><%= user.rating %></span>
-                </div>
-
-                <% if (user.isGuest) { %>
-                <div class="guest-tag">Guest</div>
-                <div class="status-pill">Stats are not saved for guests</div>
-                <% } else { %>
-                <div class="status-pill">
-                  <strong>W</strong>
-                  <span><%= user.wins %></span>
-                </div>
-                <div class="status-pill">
-                  <strong>L</strong>
-                  <span><%= user.losses %></span>
-                </div>
-                <div class="status-pill">
-                  <strong>D</strong>
-                  <span><%= user.draws %></span>
-                </div>
-                <% } %>
+              <div class="lobby-mark" aria-hidden="true">
+                <img src="/images/pieces/wN.svg" alt="" />
+                <img src="/images/pieces/bN.svg" alt="" />
               </div>
+            </header>
 
-              <div class="topbar-actions topbar-reveal topbar-reveal-delay-2">
-                <a href="/" class="btn btn-ghost nav-btn nav-btn-active">Home</a>
-                <a href="/profile" class="btn btn-ghost nav-btn">Profile</a>
-                <a href="/auth/logout" class="btn btn-danger nav-btn">
-                  <%= user.isGuest ? 'Exit' : 'Logout' %>
-                </a>
-              </div>
+            <div class="lobby">
+              <form id="lobby-form" class="card">
+                <div class="card-body">
+                  <section class="lobby-section" aria-labelledby="tc-title">
+                    <h2 id="tc-title" class="section-title">Time control</h2>
+                    <p class="section-subtitle">Minutes per player, plus seconds added after each move.</p>
+                    <div class="tile-groups" role="radiogroup" aria-labelledby="tc-title">
+                      <% timeGroups.forEach((group) => { %>
+                      <div>
+                        <div class="tile-group-label">
+                          <span class="speed-dot speed-<%= group.tone %>" aria-hidden="true"></span>
+                          <%= group.name %>
+                        </div>
+                        <div class="tile-grid">
+                          <% group.controls.forEach(([value, label]) => {
+                            const [minutes, increment] = value.split('+');
+                            const minuteWord = minutes === '1' ? 'minute' : 'minutes';
+                            const tip = increment === '0'
+                              ? `${minutes} ${minuteWord} for each player. The clock does not gain time after a move.`
+                              : `${minutes} ${minuteWord} for each player, plus ${increment} seconds added after every move.`;
+                          %>
+                          <label data-tip="<%= tip %>">
+                            <input
+                              type="radio"
+                              name="timeControl"
+                              value="<%= value %>"
+                              <%= value === '10+0' ? 'checked' : '' %>
+                            />
+                            <span class="tile">
+                              <strong><%= label %></strong>
+                              <small><%= value %></small>
+                            </span>
+                          </label>
+                          <% }) %>
+                        </div>
+                      </div>
+                      <% }) %>
+                    </div>
+                  </section>
+
+                  <section class="lobby-section" aria-labelledby="color-title">
+                    <h2 id="color-title" class="section-title">Play as</h2>
+                    <div class="color-choices" role="radiogroup" aria-labelledby="color-title">
+                      <% colors.forEach((color) => { %>
+                      <label>
+                        <input
+                          type="radio"
+                          name="colorPreference"
+                          value="<%= color.value %>"
+                          <%= color.value === 'random' ? 'checked' : '' %>
+                        />
+                        <span class="color-choice">
+                          <% if (color.value === 'random') { %>
+                          <span class="color-choice-kings">
+                            <img src="/images/pieces/wK.svg" alt="" />
+                            <img src="/images/pieces/bK.svg" alt="" />
+                          </span>
+                          <% } else { %>
+                          <img src="/images/pieces/<%= color.value === 'white' ? 'wK' : 'bK' %>.svg" alt="" />
+                          <% } %>
+                          <span class="color-choice-label"><%= color.label %></span>
+                        </span>
+                      </label>
+                      <% }) %>
+                    </div>
+                    <p class="field-help">Opposite preferences can't be paired, so Random matches fastest.</p>
+                  </section>
+
+                  <section class="lobby-section">
+                    <button id="play-online-button" type="button" class="btn btn-primary btn-lg btn-block play-button">
+                      Play
+                      <small><%= user.isGuest ? 'Unrated as a guest' : 'Rated against other players' %></small>
+                    </button>
+                  </section>
+
+                  <section class="lobby-section lobby-bot" aria-labelledby="bot-title">
+                    <h2 id="bot-title" class="section-title">Practice vs bot</h2>
+                    <p class="section-subtitle">Always unrated. Uses the time control and color above.</p>
+                    <div class="bot-options">
+                      <div class="field-group">
+                        <span id="difficulty-label" class="field-label">Difficulty</span>
+                        <div class="segmented" role="radiogroup" aria-labelledby="difficulty-label">
+                          <% [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']].forEach(([value, label]) => { %>
+                          <label>
+                            <input type="radio" name="difficulty" value="<%= value %>" <%= value === 'medium' ? 'checked' : '' %> />
+                            <span><%= label %></span>
+                          </label>
+                          <% }) %>
+                        </div>
+                      </div>
+                      <div class="field-group">
+                        <label for="bot-personality-select" class="field-label">Personality</label>
+                        <select id="bot-personality-select" name="personality" class="field-select">
+                          <option value="aggressive">Aggressive</option>
+                          <option value="positional" selected>Positional</option>
+                          <option value="defensive">Defensive</option>
+                        </select>
+                      </div>
+                    </div>
+                    <button id="play-bot-button" type="button" class="btn btn-secondary btn-block">
+                      Play vs bot
+                    </button>
+                  </section>
+                </div>
+              </form>
+
+              <aside class="stack">
+                <section class="card card-body rating-card" aria-label="Your stats">
+                  <div class="stat-hero">
+                    <span class="avatar avatar-lg" aria-hidden="true"><%= displayName.charAt(0) %></span>
+                    <div>
+                      <div class="muted">Rating</div>
+                      <div class="stat-rating"><%= user.rating %></div>
+                    </div>
+                  </div>
+                  <% if (user.isGuest) { %>
+                  <p class="flash flash-info">
+                    Guest games aren't saved or rated.
+                    <a href="/auth/register">Create an account</a> to track your progress.
+                  </p>
+                  <% } else { %>
+                  <div class="stat-grid">
+                    <div class="stat stat-win"><strong><%= user.wins %></strong><span>Wins</span></div>
+                    <div class="stat stat-loss"><strong><%= user.losses %></strong><span>Losses</span></div>
+                    <div class="stat stat-draw"><strong><%= user.draws %></strong><span>Draws</span></div>
+                  </div>
+                  <% } %>
+                </section>
+
+                <section class="card card-body">
+                  <h2 class="card-title card-title-gap">Live now</h2>
+                  <p class="lobby-stats">
+                    <span class="live-dot" aria-hidden="true"></span>
+                    <span id="lobby-stats" aria-live="polite">Loading…</span>
+                  </p>
+                </section>
+
+                <nav class="card card-body" aria-label="Shortcuts">
+                  <ul class="link-list">
+                    <li><a href="/games">Review your games <span>→</span></a></li>
+                    <li><a href="/leaderboard">Leaderboard <span>→</span></a></li>
+                    <li><a href="/profile">Board colors & profile <span>→</span></a></li>
+                  </ul>
+                </nav>
+              </aside>
             </div>
           </div>
-        </div>
-      </header>
-      <% } %>
+        </section>
 
-      <section id="landing-screen" class="landing-wrap">
-        <div class="landing-grid">
-          <div class="hero-panel panel-card">
-            <span class="eyebrow">Modern Chess Arena</span>
-            <h1 class="headline">Play sharper games in a room that feels alive.</h1>
-            <p class="hero-copy">
-              Queue for a live opponent, train against a tuned bot, and move
-              through a cleaner interface built around focus, tempo, and board
-              clarity.
-            </p>
+        <!-- Matchmaking + countdown ----------------------------------------- -->
+        <section id="finding-match-screen" class="state-wrap" hidden>
+          <div class="state-panel card" role="status" aria-live="polite">
+            <span class="eyebrow">Matchmaking</span>
+            <h2 id="finding-match-text">Finding an opponent…</h2>
+            <p id="finding-match-subtext"></p>
+            <div class="loading-spinner" aria-hidden="true"></div>
+            <p id="finding-match-status" class="muted"></p>
+            <button id="cancel-matchmaking-button" type="button" class="btn btn-ghost">Cancel</button>
+          </div>
+        </section>
 
-            <div class="hero-actions">
-              <button id="play-online-button" class="btn btn-primary hero-button">
-                <span>
-                  Play Online
-                  <small>Match with a real opponent</small>
-                </span>
-                <strong>Live</strong>
-              </button>
+        <section id="countdown-screen" class="state-wrap" hidden>
+          <div class="state-panel card">
+            <span class="eyebrow">Get ready</span>
+            <h2>Game starting in</h2>
+            <div id="countdown-number" aria-live="assertive">3</div>
+          </div>
+        </section>
 
-              <button id="play-bot-button" class="btn btn-secondary hero-button">
-                <span>
-                  Play vs Bot
-                  <small>Practice with adjustable styles</small>
-                </span>
-                <strong>AI</strong>
-              </button>
-            </div>
-
-            <div class="hero-stats">
-              <div class="hero-stat">
-                <strong>10:00</strong>
-                <span>Rapid control keeps games intense without dragging.</span>
-              </div>
-              <div class="hero-stat">
-                <strong>Real-time</strong>
-                <span>Socket-based matches for quick starts and quick sync.</span>
-              </div>
-              <div class="hero-stat">
-                <strong>Custom boards</strong>
-                <span>Personal colors carry from profile straight into the match.</span>
-              </div>
-            </div>
-
-            <div class="mini-board" aria-hidden="true">
-              <% for (let i = 0; i < 16; i++) { %>
-              <span></span>
+        <!-- Game -------------------------------------------------------------- -->
+        <section id="game-area" class="page" hidden aria-label="Game">
+          <div class="game-layout">
+            <div class="board-column">
+              <% ['top', 'bottom'].forEach((slot) => { %>
+              <% if (slot === 'bottom') { %>
+              <div id="board"></div>
               <% } %>
-            </div>
-          </div>
-
-          <aside class="sidebar-panel panel-card">
-            <div class="panel-heading">
-              <h3>Game Setup</h3>
-              <p>
-                Pick your preferred side, tune the bot, and start from a cleaner,
-                more intentional home screen.
+              <div id="player-<%= slot %>" class="player-strip">
+                <span class="player-swatch" aria-hidden="true"></span>
+                <div class="player-info">
+                  <div class="player-line">
+                    <strong class="player-name">Player</strong>
+                    <span class="player-rating"></span>
+                    <span class="check-badge" hidden>Check</span>
+                  </div>
+                  <div class="captured-row">
+                    <div class="captured-pieces" aria-label="Captured pieces"></div>
+                    <span class="material-diff"></span>
+                  </div>
+                </div>
+                <div class="timer" role="timer" aria-label="Clock">10:00</div>
+              </div>
+              <% }) %>
+              <p class="board-hint">
+                Drag or click to move · move during your opponent's turn to premove · right-click or Esc cancels
               </p>
             </div>
 
-            <div class="settings-grid">
-              <div class="field-group">
-                <label for="color-preference-select" class="field-label">Start As</label>
-                <select id="color-preference-select" class="field-select">
-                  <option value="random" selected>Random</option>
-                  <option value="white">White</option>
-                  <option value="black">Black</option>
-                </select>
-              </div>
-
-              <div class="field-group">
-                <label for="bot-difficulty-select" class="field-label">Difficulty</label>
-                <select id="bot-difficulty-select" class="field-select">
-                  <option value="easy">Easy</option>
-                  <option value="medium" selected>Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </div>
-
-              <div class="field-group">
-                <label for="bot-personality-select" class="field-label">Personality</label>
-                <select id="bot-personality-select" class="field-select">
-                  <option value="aggressive">Aggressive</option>
-                  <option value="positional" selected>Positional</option>
-                  <option value="defensive">Defensive</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="feature-list">
-              <div class="feature-row">
-                <div class="feature-icon">1</div>
-                <div>
-                  <strong>Live duels</strong>
-                  <span>Fast matchmaking with countdown and full move history.</span>
+            <div class="side-panel-wrap">
+              <aside class="side-panel card" aria-label="Game panel">
+                <div class="side-header">
+                  <div class="side-toolbar">
+                    <div id="turn-display" class="turn-display" aria-live="polite">White to move</div>
+                    <button id="flip-button" type="button" class="btn btn-quiet btn-sm" aria-label="Flip board" title="Flip board">⇅ Flip</button>
+                  </div>
+                  <div id="game-badges" class="board-meta"></div>
                 </div>
-              </div>
-              <div class="feature-row">
-                <div class="feature-icon">2</div>
-                <div>
-                  <strong>Readable pressure</strong>
-                  <span>Timers, captures, and history stay visible without crowding the board.</span>
-                </div>
-              </div>
-              <div class="feature-row">
-                <div class="feature-icon">3</div>
-                <div>
-                  <strong>Profile-driven feel</strong>
-                  <span>Your display name and board palette carry through the app.</span>
-                </div>
-              </div>
-            </div>
-          </aside>
-        </div>
-      </section>
 
-      <section id="finding-match-screen" class="state-wrap" style="display: none">
-        <div class="state-panel panel-card">
-          <span class="eyebrow">Matchmaking</span>
-          <h2 id="finding-match-text">Finding a match...</h2>
-          <p id="finding-match-subtext">Please wait</p>
-          <div class="loading-spinner"></div>
-          <p id="finding-match-status">Connecting you with an opponent</p>
-          <button id="cancel-matchmaking-button" class="btn btn-ghost cancel-matchmaking-button">
-            Cancel
-          </button>
-        </div>
-      </section>
+                <div id="move-history" class="side-moves" aria-label="Moves"></div>
 
-      <section id="countdown-screen" class="state-wrap" style="display: none">
-        <div class="state-panel panel-card">
-          <span class="eyebrow">Ready</span>
-          <h2>Game starting in</h2>
-          <div id="countdown-number">3</div>
-        </div>
-      </section>
-
-      <section id="game-area" class="game-wrap game-shell" style="display: none">
-        <div class="game-layout">
-          <div class="game-column">
-            <div class="turn-display">White's turn</div>
-
-            <div class="player-card panel-card">
-              <div class="player-card-header">
-                <div class="player-label">
-                  <span>⚪ White</span>
-                  <div id="white-check-status" class="check-badge" style="display: none">
-                    CHECK
+                <div id="draw-banner" class="draw-banner" role="alert" hidden>
+                  <span id="draw-banner-text">Your opponent offers a draw.</span>
+                  <div class="draw-banner-actions">
+                    <button id="draw-accept-button" type="button" class="btn btn-primary btn-sm">Accept</button>
+                    <button id="draw-decline-button" type="button" class="btn btn-ghost btn-sm">Decline</button>
                   </div>
                 </div>
-                <div class="white-score player-score">0</div>
-              </div>
 
-              <div class="timer-container">
-                <div class="timer-label">Time Remaining</div>
-                <div id="white-timer" class="timer">10:00</div>
-              </div>
+                <div id="game-message" class="message" hidden></div>
 
-              <div class="captured-wrap">
-                <div class="captured-title">Captured Pieces</div>
-                <div id="white-captured" class="captured-pieces"></div>
-              </div>
-            </div>
-
-            <div class="player-card panel-card">
-              <div class="player-card-header">
-                <div class="player-label">
-                  <span>⚫ Black</span>
-                  <div id="black-check-status" class="check-badge" style="display: none">
-                    CHECK
+                <div class="side-section">
+                  <div id="game-controls" class="controls-row">
+                    <button id="draw-offer-button" type="button" class="btn btn-ghost">½ Offer draw</button>
+                    <button id="draw-withdraw-button" type="button" class="btn btn-ghost" hidden>Withdraw offer</button>
+                    <button id="resign-button" type="button" class="btn btn-danger-outline">⚑ Resign</button>
+                  </div>
+                  <div id="post-game-controls" class="controls-row" hidden>
+                    <button id="rematch-button" type="button" class="btn btn-primary">New game</button>
+                    <button id="lobby-button" type="button" class="btn btn-ghost">Back to lobby</button>
                   </div>
                 </div>
-                <div class="black-score player-score">0</div>
-              </div>
 
-              <div class="timer-container">
-                <div class="timer-label">Time Remaining</div>
-                <div id="black-timer" class="timer">10:00</div>
-              </div>
-
-              <div class="captured-wrap">
-                <div class="captured-title">Captured Pieces</div>
-                <div id="black-captured" class="captured-pieces"></div>
-              </div>
+                <div id="opponent-chat-panel" class="chat-panel" hidden>
+                  <div class="chat-title">Chat</div>
+                  <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+                  <form id="chat-form" class="chat-form" autocomplete="off">
+                    <label for="chat-input" class="sr-only">Message</label>
+                    <input id="chat-input" class="chat-input" type="text" maxlength="300" placeholder="Say something…" />
+                    <button type="submit" class="btn btn-ghost btn-sm">Send</button>
+                  </form>
+                </div>
+              </aside>
             </div>
           </div>
+        </section>
+      </main>
 
-          <div class="game-column">
-            <div class="board-panel panel-card">
-              <div class="board-header">
-                <div>
-                  <h3>Match Board</h3>
-                  <p>Track pressure, watch the clock, and stay on the current line.</p>
-                </div>
-              
-              </div>
-
-              <div class="board-frame">
-                <div class="board-rank-file">
-                  <div class="rank-labels" aria-hidden="true">
-                    <span>8</span>
-                    <span>7</span>
-                    <span>6</span>
-                    <span>5</span>
-                    <span>4</span>
-                    <span>3</span>
-                    <span>2</span>
-                    <span>1</span>
-                  </div>
-                  <div>
-                    <div class="chessboard"></div>
-                    <div class="file-labels" aria-hidden="true">
-                      <span>a</span>
-                      <span>b</span>
-                      <span>c</span>
-                      <span>d</span>
-                      <span>e</span>
-                      <span>f</span>
-                      <span>g</span>
-                      <span>h</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="game-controls-card panel-card">
-              <div class="controls-row">
-                <button
-                  id="draw-offer-button"
-                  class="btn btn-info control-button"
-                  style="display: none"
-                >
-                  Offer Draw
-                </button>
-                <button
-                  id="resign-button"
-                  class="btn btn-danger control-button"
-                  style="display: none"
-                >
-                  Resign
-                </button>
-              </div>
-
-              <div class="message"></div>
-            </div>
-          </div>
-
-          <aside class="move-history-container panel-card" style="display: none">
-            <div class="move-history-heading">
-              <h3>Move History</h3>
-              <p>Every move, in order, with the current sequence highlighted.</p>
-            </div>
-            <div id="move-history" class="move-history"></div>
-
-            <div id="opponent-chat-panel" class="chat-panel" style="display: none">
-              <div class="move-history-heading">
-                <h3>Opponent Chat</h3>
-                <p>Only available in online matches.</p>
-              </div>
-              <div id="chat-messages" class="chat-messages">
-                <p class="chat-empty">No messages yet.</p>
-              </div>
-              <form id="chat-form" class="chat-form" autocomplete="off">
-                <input
-                  id="chat-input"
-                  class="chat-input"
-                  type="text"
-                  maxlength="300"
-                  placeholder="Type a message..."
-                />
-                <button type="submit" class="btn btn-info chat-send-button">Send</button>
-              </form>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <script
-        src="https://cdn.socket.io/4.7.5/socket.io.min.js"
-        integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
-        crossorigin="anonymous"
-      ></script>
-      <script
-        src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"
-        integrity="sha512-xRllwz2gdZciIB+AkEbeq+gVhX8VB8XsfqeFbUh+SzHlN96dEduwtTuVuc2u9EROlmW9+yhRlxjif66ORpsgVA=="
-        crossorigin="anonymous"
-        referrerpolicy="no-referrer"
-      ></script>
-      <script src="/javascripts/script.js"></script>
+      <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
     </div>
+
+    <script src="/socket.io/socket.io.min.js"></script>
+    <script type="module" src="/javascripts/app/pages/play/index.js"></script>
   </body>
 </html>
