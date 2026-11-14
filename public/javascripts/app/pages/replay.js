@@ -32,9 +32,19 @@ const init = () => {
       ["#replay-top", top],
       ["#replay-bottom", bottom],
     ]) {
-      $(slot).replaceChildren(
-        el("span", { class: `color-dot color-dot-${color}`, "aria-hidden": "true" }),
-        el("strong", { text: data[color] || color }),
+      const strip = $(slot);
+      strip.dataset.color = color;
+      strip.replaceChildren(
+        el("span", { class: "player-swatch", "aria-hidden": "true" }),
+        el("div", { class: "player-info" }, [
+          el("div", { class: "player-line" }, [
+            el("strong", { class: "player-name", text: data[color] || color }),
+            el("span", {
+              class: "player-rating",
+              text: color === "white" ? "White" : "Black",
+            }),
+          ]),
+        ]),
       );
     }
   };

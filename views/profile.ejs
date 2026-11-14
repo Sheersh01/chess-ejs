@@ -1,311 +1,203 @@
+<%
+  const displayName = user.displayName || user.username;
+  const colors = [
+    { id: 'boardLight', label: 'Light squares', value: user.settings?.boardLight || '#f0d9b5' },
+    { id: 'boardDark', label: 'Dark squares', value: user.settings?.boardDark || '#b58863' },
+    { id: 'hintColor', label: 'Move hints', value: user.settings?.hintColor || '#14551e' },
+  ];
+%>
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <%- include('partials/head', { title: 'Profile' }) %>
   </head>
   <body>
-    <div class="page-grid"></div>
     <%- include('partials/small-device') %>
 
-    <div id="desktop-app" class="page-shell">
+    <div id="desktop-app">
       <%- include('partials/topbar', { user, active: 'profile' }) %>
-      <main id="main-content" class="profile-wrap" tabindex="-1">
+
+      <main id="main-content" class="page" tabindex="-1">
         <div class="container">
-          <div class="profile-header">
+          <% if (error) { %>
+          <div class="flash flash-error" role="alert"><%= error %></div>
+          <% } %>
+          <% if (success) { %>
+          <div class="flash flash-success" role="status"><%= success %></div>
+          <% } %>
+
+          <section class="card card-body profile-hero" aria-label="Profile summary">
+            <span class="avatar avatar-lg" aria-hidden="true"><%= displayName.charAt(0) %></span>
             <div>
-              <span class="eyebrow">Profile Studio</span>
-              <h1>Shape your identity and the board beneath it.</h1>
-              <p>
-                Update how your name appears, tune your board colors, and preview
-                the atmosphere before you jump back into a game.
+              <h1 class="page-title"><%= displayName %></h1>
+              <p class="muted">
+                @<%= user.username %>
+                <% if (user.isGuest) { %><span class="tag">Guest</span><% } %>
               </p>
             </div>
-          </div>
+            <div class="stat-grid">
+              <div class="stat"><strong><%= user.rating %></strong><span>Rating</span></div>
+              <div class="stat stat-win"><strong><%= user.wins || 0 %></strong><span>Wins</span></div>
+              <div class="stat stat-loss"><strong><%= user.losses || 0 %></strong><span>Losses</span></div>
+              <div class="stat stat-draw"><strong><%= user.draws || 0 %></strong><span>Draws</span></div>
+            </div>
+          </section>
 
-          <% if (error) { %>
-          <div class="flash flash-error" role="alert" style="margin-bottom: 18px"><%= error %></div>
-          <% } %>
-
-          <% if (success) { %>
-          <div class="flash flash-success" role="status" style="margin-bottom: 18px"><%= success %></div>
-          <% } %>
-
-          <form id="profile-settings-form" action="/profile" method="POST" class="profile-panel panel-card">
-            <div class="profile-grid">
-              <div class="profile-section">
-                <section class="profile-section">
-                  <div class="section-heading">
-                    <h2>Identity</h2>
-                    <p>Keep your public profile clean, readable, and recognizable.</p>
-                  </div>
-
-                  <div class="identity-grid">
+          <div class="profile-layout">
+            <div class="stack">
+              <form id="profile-settings-form" action="/profile" method="POST" class="card">
+                <div class="card-header">
+                  <h2 class="card-title">Profile & board</h2>
+                </div>
+                <div class="card-body stack">
+                  <div class="form-grid">
                     <div class="field-group">
                       <label for="username" class="field-label">Username</label>
-                      <input
-                        id="username"
-                        type="text"
-                        value="<%= user.username %>"
-                        class="field-input"
-                        readonly
-                      />
-                      <div class="field-help">Username is fixed and cannot be changed.</div>
+                      <input id="username" type="text" value="<%= user.username %>" class="field-input" readonly aria-describedby="username-help" />
+                      <div id="username-help" class="field-help">Your username can't be changed.</div>
                     </div>
-
                     <div class="field-group">
-                      <label for="displayName" class="field-label">Display Name</label>
+                      <label for="displayName" class="field-label">Display name</label>
                       <input
                         id="displayName"
                         name="displayName"
                         type="text"
                         maxlength="30"
                         value="<%= user.displayName || '' %>"
-                        placeholder="How your name appears in UI"
+                        placeholder="<%= user.username %>"
                         class="field-input"
+                        aria-describedby="display-help"
                       />
-                      <div class="field-help">This name appears in game UI and match history.</div>
+                      <div id="display-help" class="field-help">Shown to opponents and in game history.</div>
                     </div>
                   </div>
-                </section>
 
-                <section class="profile-section">
-                  <div class="section-heading">
-                    <h2>Board Palette</h2>
-                    <p>Choose a board personality that still keeps your moves readable.</p>
-                  </div>
-
-                  <div class="color-grid">
-                    <div class="color-field">
-                      <label for="boardLight" class="field-label">Light Tiles</label>
-                      <div class="color-input-row">
-                        <input
-                          id="boardLight"
-                          name="boardLight"
-                          type="color"
-                          value="<%= user.settings?.boardLight || '#f0d9b5' %>"
-                          class="color-picker"
-                        />
-                        <input
-                          id="boardLightText"
-                          type="text"
-                          value="<%= user.settings?.boardLight || '#f0d9b5' %>"
-                          class="field-text"
-                        />
+                  <div>
+                    <h3 class="section-title">Board colors</h3>
+                    <p class="section-subtitle">Pick colors with enough contrast to read pieces quickly.</p>
+                    <div class="palette">
+                      <div class="color-fields">
+                        <% colors.forEach((color) => { %>
+                        <div class="color-field">
+                          <label for="<%= color.id %>" class="field-label"><%= color.label %></label>
+                          <input id="<%= color.id %>" name="<%= color.id %>" type="color" value="<%= color.value %>" class="color-picker" />
+                          <input
+                            id="<%= color.id %>Text"
+                            type="text"
+                            value="<%= color.value %>"
+                            class="field-text"
+                            aria-label="<%= color.label %> hex value"
+                          />
+                        </div>
+                        <% }) %>
                       </div>
-                    </div>
-
-                    <div class="color-field">
-                      <label for="boardDark" class="field-label">Dark Tiles</label>
-                      <div class="color-input-row">
-                        <input
-                          id="boardDark"
-                          name="boardDark"
-                          type="color"
-                          value="<%= user.settings?.boardDark || '#b58863' %>"
-                          class="color-picker"
-                        />
-                        <input
-                          id="boardDarkText"
-                          type="text"
-                          value="<%= user.settings?.boardDark || '#b58863' %>"
-                          class="field-text"
-                        />
-                      </div>
-                    </div>
-
-                    <div class="color-field">
-                      <label for="hintColor" class="field-label">Hint Color</label>
-                      <div class="color-input-row">
-                        <input
-                          id="hintColor"
-                          name="hintColor"
-                          type="color"
-                          value="<%= user.settings?.hintColor || '#14551e' %>"
-                          class="color-picker"
-                        />
-                        <input
-                          id="hintColorText"
-                          type="text"
-                          value="<%= user.settings?.hintColor || '#14551e' %>"
-                          class="field-text"
-                        />
+                      <div>
+                        <div class="preview-board" aria-label="Board color preview" role="img">
+                          <% for (let i = 0; i < 16; i++) { %>
+                          <div class="preview-square" data-index="<%= i %>"></div>
+                          <% } %>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </section>
-
-                <div class="profile-actions">
-                  <button id="save-settings-button" type="submit" class="btn btn-primary" disabled>
-                    Save Settings
-                  </button>
-                  <a href="/" class="btn btn-ghost">Cancel</a>
                 </div>
-              </div>
-
-              <aside class="preview-panel">
-                <div class="section-heading">
-                  <h2>Live Preview</h2>
-                  <p>Adjust colors and see the board update instantly.</p>
+                <div class="form-actions">
+                  <a href="/" class="btn btn-quiet">Cancel</a>
+                  <button id="save-settings-button" type="submit" class="btn btn-primary" disabled>Save changes</button>
                 </div>
-
-                <div class="board-preview-shell">
-                  <div class="preview-board">
-                    <% for (let i = 0; i < 16; i++) { %>
-                    <div class="preview-square" data-index="<%= i %>"></div>
-                    <% } %>
-                  </div>
-                </div>
-
-                <div class="feature-list">
-                  <div class="feature-row">
-                    <div class="feature-icon">A</div>
-                    <div>
-                      <strong>Readable contrast</strong>
-                      <span>Try color pairs with enough separation for fast piece recognition.</span>
-                    </div>
-                  </div>
-                  <div class="feature-row">
-                    <div class="feature-icon">B</div>
-                    <div>
-                      <strong>Hint visibility</strong>
-                      <span>Pick a hint color that stands out clearly on both tile shades.</span>
-                    </div>
-                  </div>
-                </div>
-              </aside>
-            </div>
-          </form>
-
-          <% if (!user.isGuest) { %>
-          <section class="profile-panel panel-card" style="margin-top: 20px">
-            <section class="profile-section">
-              <div class="section-heading">
-                <h2>Change Password</h2>
-                <p>Changing your password signs you out on every other device.</p>
-              </div>
-
-              <form id="change-password-form" action="/profile/password" method="POST" class="field-group">
-                <label for="currentPassword" class="field-label">Current password</label>
-                <input
-                  id="currentPassword"
-                  name="currentPassword"
-                  type="password"
-                  class="field-input"
-                  autocomplete="current-password"
-                  required
-                />
-                <label for="newPassword" class="field-label">New password</label>
-                <input
-                  id="newPassword"
-                  name="newPassword"
-                  type="password"
-                  class="field-input"
-                  autocomplete="new-password"
-                  minlength="8"
-                  maxlength="72"
-                  required
-                />
-                <button type="submit" class="btn btn-primary" style="width: fit-content">
-                  Update Password
-                </button>
               </form>
-            </section>
-          </section>
-          <% } %>
 
-          <section class="profile-panel panel-card" style="margin-top: 20px">
-            <section class="profile-section">
-              <div class="section-heading">
-                <h2>Danger Zone</h2>
-                <p>Delete your account permanently. This action cannot be undone.</p>
-              </div>
-
-              <% if (!user.isGuest) { %>
-              <form id="delete-account-form" action="/profile/delete" method="POST" class="field-group">
-                <label for="confirmDelete" class="field-label">Type DELETE to confirm</label>
-                <input
-                  id="confirmDelete"
-                  name="confirmDelete"
-                  type="text"
-                  class="field-input"
-                  placeholder="DELETE"
-                  autocomplete="off"
-                  required
-                />
-                <button type="submit" class="btn btn-danger" style="width: fit-content">
-                  Delete My Account
-                </button>
-              </form>
-              <% } else { %>
-              <div class="flash flash-error">Guest sessions do not have a stored account to delete.</div>
-              <% } %>
-            </section>
-          </section>
-
-          <section class="history-panel panel-card">
-            <div class="section-heading">
-              <h2>Recent Games</h2>
-              <p>Your latest saved matches, including result, color, opponent, and rating swing.</p>
-            </div>
-
-            <% if (user.isGuest) { %>
-            <div class="flash flash-error">Game history is only saved for registered users.</div>
-            <% } else if (!user.gameHistory || user.gameHistory.length === 0) { %>
-            <div class="history-empty">
-              <strong>No saved games yet.</strong>
-              <span>Finish a match and it will appear here.</span>
-            </div>
-            <% } else { %>
-            <div class="history-list">
-              <% user.gameHistory.forEach((game) => { %>
-              <article class="history-row">
-                <div class="history-main">
-                  <div class="history-topline">
-                    <span class="history-result history-result-<%= game.result %>">
-                      <%= game.result.toUpperCase() %>
-                    </span>
-                    <span class="history-mode">
-                      <%= game.mode === 'bot' ? 'Bot Game' : 'Online Match' %>
-                    </span>
-                    <span class="history-color"><%= game.color === 'white' ? 'White' : 'Black' %></span>
-                  </div>
-
-                  <h3>
-                    vs <%= game.opponent %>
-                    <% if (game.gameId) { %>
-                    <a class="history-link" href="/games/<%= encodeURIComponent(game.gameId) %>">Review</a>
-                    <% } %>
-                  </h3>
-                  <p><%= game.reason || 'Completed game' %></p>
+              <section class="card" aria-labelledby="recent-title">
+                <div class="card-header">
+                  <h2 id="recent-title" class="card-title">Recent games</h2>
+                  <a class="btn btn-quiet btn-sm" href="/games">All games →</a>
                 </div>
-
-                <div class="history-meta">
-                  <div class="history-stat">
-                    <strong>Moves</strong>
-                    <span><%= game.moves %></span>
-                  </div>
-                  <div class="history-stat">
-                    <strong>Rating</strong>
-                    <span>
+                <% if (user.isGuest) { %>
+                <div class="empty-state"><span>Game history is only saved for registered players.</span></div>
+                <% } else if (!user.gameHistory || user.gameHistory.length === 0) { %>
+                <div class="empty-state">
+                  <strong>No saved games yet</strong>
+                  <span>Finish a game and it will appear here.</span>
+                </div>
+                <% } else { %>
+                <div class="history-list">
+                  <% user.gameHistory.forEach((game) => {
+                    const tone = { win: 'win', loss: 'loss', draw: 'draw' }[game.result] || 'neutral';
+                  %>
+                  <article class="history-row">
+                    <span class="result-pill result-<%= tone %>"><%= game.result %></span>
+                    <span class="color-dot color-dot-<%= game.color %>" title="You played <%= game.color %>"></span>
+                    <div class="history-main">
+                      <strong>vs <%= game.opponent %></strong>
+                      <span>
+                        <%= game.reason || 'Completed game' %> ·
+                        <%= game.mode === 'bot' ? 'Bot' : 'Online' %> ·
+                        <%= new Date(game.playedAt).toLocaleDateString() %>
+                      </span>
+                    </div>
+                    <span class="history-rating">
                       <% if (game.rated === false) { %>
                       Unrated
-                      <% } else { %>
-                      <%= typeof game.ratingBefore === 'number' ? game.ratingBefore : '-' %>
-                      →
-                      <%= typeof game.ratingAfter === 'number' ? game.ratingAfter : '-' %>
+                      <% } else if (typeof game.ratingBefore === 'number' && typeof game.ratingAfter === 'number') { %>
+                      <%= game.ratingAfter %>
+                      (<%= game.ratingAfter - game.ratingBefore >= 0 ? '+' : '' %><%= game.ratingAfter - game.ratingBefore %>)
                       <% } %>
                     </span>
-                  </div>
-                  <div class="history-stat">
-                    <strong>Played</strong>
-                    <span><%= new Date(game.playedAt).toLocaleString() %></span>
-                  </div>
+                    <% if (game.gameId) { %>
+                    <a class="btn btn-ghost btn-sm" href="/games/<%= encodeURIComponent(game.gameId) %>">Review</a>
+                    <% } %>
+                  </article>
+                  <% }) %>
                 </div>
-              </article>
-              <% }) %>
+                <% } %>
+              </section>
             </div>
-            <% } %>
-          </section>
+
+            <div class="stack">
+              <% if (!user.isGuest) { %>
+              <section class="card" aria-labelledby="password-title">
+                <div class="card-header">
+                  <h2 id="password-title" class="card-title">Change password</h2>
+                </div>
+                <form id="change-password-form" action="/profile/password" method="POST" class="card-body stack">
+                  <p class="muted help-note">This signs you out on every other device.</p>
+                  <div class="field-group">
+                    <label for="currentPassword" class="field-label">Current password</label>
+                    <input id="currentPassword" name="currentPassword" type="password" class="field-input" autocomplete="current-password" required />
+                  </div>
+                  <div class="field-group">
+                    <label for="newPassword" class="field-label">New password</label>
+                    <input id="newPassword" name="newPassword" type="password" class="field-input" autocomplete="new-password" minlength="8" maxlength="72" required aria-describedby="new-password-help" />
+                    <div id="new-password-help" class="field-help">At least 8 characters</div>
+                  </div>
+                  <button type="submit" class="btn btn-primary">Update password</button>
+                </form>
+              </section>
+              <% } %>
+
+              <section class="card" aria-labelledby="danger-title">
+                <div class="card-header">
+                  <h2 id="danger-title" class="card-title">Delete account</h2>
+                </div>
+                <div class="card-body">
+                  <% if (!user.isGuest) { %>
+                  <form id="delete-account-form" action="/profile/delete" method="POST" class="stack">
+                    <p class="muted help-note">
+                      Permanently removes your profile, rating and history. This can't be undone.
+                    </p>
+                    <div class="field-group">
+                      <label for="confirmDelete" class="field-label">Type DELETE to confirm</label>
+                      <input id="confirmDelete" name="confirmDelete" type="text" class="field-input" placeholder="DELETE" autocomplete="off" required />
+                    </div>
+                    <button type="submit" class="btn btn-danger-outline">Delete my account</button>
+                  </form>
+                  <% } else { %>
+                  <p class="muted">Guest sessions have no stored account. It ends when you exit.</p>
+                  <% } %>
+                </div>
+              </section>
+            </div>
+          </div>
         </div>
       </main>
     </div>

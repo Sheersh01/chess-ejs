@@ -10,36 +10,34 @@ const SCREENS = [
 
 export const showScreen = (id) => {
   for (const screen of SCREENS) show($(`#${screen}`), screen === id);
+  window.scrollTo({ top: 0 });
 };
 
-const FIELDS = {
-  colorPreference: "#color-preference-select",
-  timeControl: "#time-control-select",
-  difficulty: "#bot-difficulty-select",
-  personality: "#bot-personality-select",
-};
-
+// Lobby form fields (radio groups and a select), remembered between visits.
+const FIELDS = ["timeControl", "colorPreference", "difficulty", "personality"];
 const COLOR_LABELS = { random: "Random", white: "White", black: "Black" };
 
-/** Lobby form, remembered between visits. */
+const form = () => $("#lobby-form");
+
 export const readSettings = () =>
-  Object.fromEntries(
-    Object.entries(FIELDS).map(([key, selector]) => [key, $(selector)?.value]),
-  );
+  Object.fromEntries(FIELDS.map((name) => [name, form()?.elements[name]?.value]));
 
 export const initLobbySettings = () => {
+  const lobbyForm = form();
+  if (!lobbyForm) return;
+
   const saved = load("lobby", {});
-  for (const [key, selector] of Object.entries(FIELDS)) {
-    const select = $(selector);
-    if (!select) continue;
-    if (
-      saved[key] &&
-      [...select.options].some((option) => option.value === saved[key])
-    ) {
-      select.value = saved[key];
-    }
-    select.addEventListener("change", () => save("lobby", readSettings()));
+  for (const name of FIELDS) {
+    const field = lobbyForm.elements[name];
+    if (!field || !saved[name]) continue;
+    // Only restore values that still exist as options.
+    const options = field instanceof RadioNodeList ? [...field] : [...field.options];
+    if (options.some((option) => option.value === saved[name]))
+      field.value = saved[name];
   }
+
+  lobbyForm.addEventListener("change", () => save("lobby", readSettings()));
+  lobbyForm.addEventListener("submit", (event) => event.preventDefault());
 };
 
 let searchTimer = null;
@@ -66,7 +64,7 @@ export const showSearching = (mode, settings) => {
   }
 
   title.textContent = "Finding an opponent…";
-  subtitle.textContent = `${settings.timeControl} · preferred color: ${color}`;
+  subtitle.textContent = `${settings.timeControl} · playing ${color.toLowerCase()}`;
   const startedAt = Date.now();
   const tick = () => {
     const seconds = Math.floor((Date.now() - startedAt) / 1000);
@@ -83,7 +81,9 @@ export const loadLobbyStats = async () => {
   try {
     const response = await fetch("/api/v1/stats", { credentials: "same-origin" });
     const { data } = await response.json();
-    node.textContent = `${data.activeGames} live game${data.activeGames === 1 ? "" : "s"} · ${data.activePlayers} player${data.activePlayers === 1 ? "" : "s"} in a match`;
+    const games = `${data.activeGames} game${data.activeGames === 1 ? "" : "s"} in progress`;
+    const players = `${data.activePlayers} player${data.activePlayers === 1 ? "" : "s"} playing`;
+    node.textContent = `${games} · ${players}`;
   } catch {
     node.textContent = "Live stats unavailable";
   }

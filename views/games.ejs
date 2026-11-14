@@ -4,21 +4,21 @@
     <%- include('partials/head', { title: 'My Games' }) %>
   </head>
   <body>
-    <div class="page-grid"></div>
     <%- include('partials/small-device') %>
 
-    <div id="desktop-app" class="page-shell">
+    <div id="desktop-app">
       <%- include('partials/topbar', { user, active: 'games' }) %>
 
-      <main id="main-content" class="page-wrap" tabindex="-1">
+      <main id="main-content" class="page" tabindex="-1">
         <div class="container">
           <header class="page-header">
-            <span class="eyebrow">History</span>
-            <h1 class="headline">My Games</h1>
-            <p>Every finished game, newest first. Open one to replay it move by move.</p>
+            <div>
+              <h1 class="page-title">My Games</h1>
+              <p class="page-subtitle">Every finished game, newest first. Open one to replay it move by move.</p>
+            </div>
           </header>
 
-          <section class="panel-card table-card">
+          <section class="card">
             <% if (unavailable) { %>
             <div class="empty-state">
               <strong>Game history unavailable</strong>
@@ -37,8 +37,8 @@
                 <tr>
                   <th scope="col">Result</th>
                   <th scope="col">Opponent</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Reason</th>
+                  <th scope="col">Game</th>
+                  <th scope="col">Ended by</th>
                   <th scope="col" class="num">Moves</th>
                   <th scope="col">Date</th>
                   <th scope="col"><span class="sr-only">Actions</span></th>
@@ -49,21 +49,23 @@
                 <tr>
                   <td><span class="result-pill result-<%= game.outcome.tone %>"><%= game.outcome.label %></span></td>
                   <td>
-                    <span class="color-dot color-dot-<%= game.myColor %>" title="You played <%= game.myColor %>"></span>
-                    <%= game.opponent %>
+                    <div class="player-cell">
+                      <span class="color-dot color-dot-<%= game.myColor %>" title="You played <%= game.myColor %>"></span>
+                      <strong><%= game.opponent %></strong>
+                    </div>
                   </td>
                   <td>
-                    <%= game.mode === 'bot' ? 'Bot' : 'Online' %> · <%= game.timeControl %>
-                    <% if (!game.rated) { %><span class="tag">Unrated</span><% } %>
+                    <span class="chip"><%= game.timeControl %></span>
+                    <span class="muted mode-meta"><%= game.mode === 'bot' ? 'Bot' : 'Online' %><%= game.rated ? ' · Rated' : '' %></span>
                   </td>
                   <td class="muted"><%= game.reason || '—' %></td>
                   <td class="num"><%= Math.ceil((game.moveCount || 0) / 2) %></td>
-                  <td>
+                  <td class="muted">
                     <% if (game.finishedAt) { %>
                     <time datetime="<%= new Date(game.finishedAt).toISOString() %>"><%= new Date(game.finishedAt).toLocaleString() %></time>
                     <% } %>
                   </td>
-                  <td><a class="btn btn-ghost btn-small" href="/games/<%= encodeURIComponent(game.gameId) %>">Review</a></td>
+                  <td class="num"><a class="btn btn-ghost btn-sm" href="/games/<%= encodeURIComponent(game.gameId) %>">Review</a></td>
                 </tr>
                 <% }) %>
               </tbody>
@@ -71,9 +73,9 @@
 
             <% if (pages > 1) { %>
             <nav class="pagination" aria-label="Pages">
-              <% if (page > 1) { %><a class="btn btn-ghost btn-small" href="/games?page=<%= page - 1 %>">← Newer</a><% } %>
+              <% if (page > 1) { %><a class="btn btn-ghost btn-sm" href="/games?page=<%= page - 1 %>">← Newer</a><% } %>
               <span>Page <%= page %> of <%= pages %></span>
-              <% if (page < pages) { %><a class="btn btn-ghost btn-small" href="/games?page=<%= page + 1 %>">Older →</a><% } %>
+              <% if (page < pages) { %><a class="btn btn-ghost btn-sm" href="/games?page=<%= page + 1 %>">Older →</a><% } %>
             </nav>
             <% } %>
             <% } %>

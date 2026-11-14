@@ -4,40 +4,15 @@
     <%- include('partials/head', { title: 'Sign in' }) %>
   </head>
   <body>
-    <div class="page-grid"></div>
     <%- include('partials/small-device') %>
 
-    <main id="desktop-app" class="page-shell">
-      <div class="container split-layout">
-        <section class="auth-hero">
-          <span class="eyebrow">Sharper matches, cleaner focus</span>
-          <h1 class="headline">Enter the board like it matters.</h1>
-          <p>
-            Jump into real-time matches, tune your board style, and keep your
-            rating climbing in a cleaner, more immersive chess experience.
-          </p>
+    <main id="desktop-app" class="auth-page">
+      <div class="auth-shell">
+        <%- include('partials/auth-pitch') %>
 
-          <div class="auth-metrics">
-            <div class="metric-card">
-              <strong>10 min</strong>
-              <span>Per-player rapid games built for momentum.</span>
-            </div>
-            <div class="metric-card">
-              <strong>Live</strong>
-              <span>Instant matchmaking and bot practice from one home screen.</span>
-            </div>
-            <div class="metric-card">
-              <strong>Custom</strong>
-              <span>Personal board colors and profile identity settings.</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="auth-card panel-card">
-          <div>
-            <h2>Welcome back</h2>
-            <p>Sign in to continue your next match.</p>
-          </div>
+        <section class="auth-card card" aria-labelledby="auth-title">
+          <h2 id="auth-title">Welcome back</h2>
+          <p class="auth-lede">Sign in to continue to your games.</p>
 
           <% if (error) { %>
           <div class="flash flash-error" role="alert"><%= error %></div>
@@ -45,15 +20,16 @@
 
           <form action="/auth/login" method="POST" class="auth-form">
             <div class="field-group">
-              <label for="email" class="field-label">Email Address</label>
+              <label for="email" class="field-label">Email</label>
               <input
                 type="email"
                 id="email"
                 name="email"
                 value="<%= email %>"
                 required
+                autocomplete="email"
                 class="field-input"
-                placeholder="your@email.com"
+                placeholder="you@example.com"
               />
             </div>
 
@@ -64,26 +40,23 @@
                 id="password"
                 name="password"
                 required
+                autocomplete="current-password"
                 class="field-input"
-                placeholder="Enter your password"
               />
             </div>
 
-            <button type="submit" class="btn btn-primary">Sign In</button>
+            <button type="submit" class="btn btn-primary btn-lg btn-block">Sign in</button>
           </form>
 
-          <div class="auth-divider"><span>or</span></div>
+          <div class="divider">or</div>
 
           <form action="/auth/guest" method="POST">
-            <button type="submit" class="btn btn-info" style="width: 100%">
-              <span>Quick guest match</span>
-            </button>
+            <button type="submit" class="btn btn-ghost btn-lg btn-block">Play as guest</button>
           </form>
 
-          <div class="auth-footer">
-            Don't have an account?
-            <a href="/auth/register">Create one here</a>
-          </div>
+          <p class="auth-footer">
+            New here? <a href="/auth/register">Create an account</a>
+          </p>
         </section>
       </div>
     </main>

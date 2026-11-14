@@ -13,7 +13,8 @@ with OpenAPI docs, Docker and CI.
 - Rated games between registered players (Elo, K=40 for the first 30 games, then 20)
 - Bot games (easy / medium / hard, three personalities) — **unrated**; search runs in a
   `worker_threads` pool with a time budget, so it never blocks other games
-- Reconnect within a 30 s grace window; leaving for longer loses by abandonment
+- Reconnect within a 30 s grace window; after that the disconnected side loses by
+  abandonment (still rated if both players were registered)
 - Draw offers with real offer state, resignations, flag-fall (draw if the opponent cannot mate)
 - JWT auth (registered + guest), change password (revokes all other sessions)
 - Game records in MongoDB with PGN, clocks and rating changes
@@ -62,18 +63,30 @@ flowchart TB
 #### Frontend
 
 Server-rendered EJS pages plus native ES modules (no build step) in
-`public/javascripts/app/`: `chess/` (board, clock, move list), `ui/` (modal, toast,
-sounds, theme, settings) and `pages/` (one entry per page). The browser uses the same
-chess.js build as the server, served from `/vendor/chess.js/`. Piece images are the
-Cburnett set, used under the BSD license (see `public/images/pieces/LICENSE.md`).
+`public/javascripts/app/`:
+
+- `chess/` — board, clock, pieces, move list
+- `ui/` — modal, toast, sounds, theme, promotion, shell (top bar + settings)
+- `pages/` — `play/` (lobby, game, match lock), `profile`, `replay`, `basic`
+- `core/` — DOM helpers and local storage
+
+The browser uses the same chess.js build as the server, served from
+`/vendor/chess.js/`. Piece images are the Cburnett set, used under the BSD license
+(see `public/images/pieces/LICENSE.md`).
+
+Styling lives in one stylesheet, `public/stylesheets/app.css`, built on design tokens
+(`:root` for dark, `[data-theme="light"]` for light). Shared EJS partials in
+`views/partials/` provide the head, top bar and sign-in pitch.
 
 ## Scaling model (read this before deploying)
 
 Live games, clocks and the matchmaking queue live **in the memory of one Node process**, so the
 app is designed to run as a **single instance**. That keeps moves fast and the code simple.
 
-- On restart, live games are ended as `abandoned` (unrated) and players are notified; any record
-  still `active` at boot is marked `abandoned`.
+- On process shutdown/restart, live games are aborted as `abandoned` with no result
+  (**unrated**); any DB record still `active` at boot is marked `abandoned` the same way.
+  Mid-game disconnect after the grace window is different: the opponent wins by abandonment
+  and the game stays rated when both sides were registered.
 - `REDIS_URL` is optional and only plugs in the Socket.IO Redis adapter; it does **not** share
   game state between instances.
 - The game store (`game/gameManager.js`) and queue (`game/matchmakingQueue.js`) are isolated
@@ -171,6 +184,8 @@ See [.env.example](.env.example).
   random-legal-move fallback.
 - **userId-based reconnect:** socket IDs change on refresh; games are keyed by user ID, and only
   a player whose own side is disconnected can resume it.
+- **Widening matchmaking window:** starts at ±100 Elo, grows by 50/s of wait (cap ±1000),
+  bucketed per time control, with optional color preference.
 
 ## License
 

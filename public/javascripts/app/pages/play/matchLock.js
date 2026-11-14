@@ -15,8 +15,8 @@ const warn = () => toast(MESSAGE, { type: "warning", id: "match-lock" });
 /** While a game is live, block in-app navigation, logout, back and tab close. */
 export const setMatchLock = (value) => {
   locked = Boolean(value);
-  for (const node of $$(".topbar-actions .nav-btn")) {
-    node.classList.toggle("nav-btn-disabled", locked);
+  for (const node of $$("[data-nav-guard]")) {
+    node.classList.toggle("is-disabled", locked);
     if (locked) {
       node.setAttribute("aria-disabled", "true");
       node.setAttribute("title", "Finish the current match to use this");

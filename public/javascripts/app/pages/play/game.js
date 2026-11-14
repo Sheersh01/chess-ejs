@@ -170,9 +170,8 @@ export class GameController {
     );
 
     const isOnline = info.mode === "online";
-    show($("#opponent-chat-panel"), isOnline);
     show($("#draw-offer-button"), isOnline);
-    if (isOnline) this.clearChat();
+    this.setChatAvailable(isOnline);
   }
 
   onStart() {
@@ -426,9 +425,25 @@ export class GameController {
 
   // ---- chat ----------------------------------------------------------------
 
-  clearChat() {
-    $("#chat-messages")?.replaceChildren(
-      el("p", { class: "empty-note", text: "No messages yet." }),
+  clearChat(text = "No messages yet.") {
+    $("#chat-messages")?.replaceChildren(el("p", { class: "empty-note", text }));
+  }
+
+  /** Chat is always visible so it's discoverable; it only works in online games. */
+  setChatAvailable(available) {
+    show($("#opponent-chat-panel"), true);
+    const input = $("#chat-input");
+    const send = $("#chat-form button[type=submit]");
+    if (input) {
+      input.disabled = !available;
+      input.value = "";
+      input.placeholder = available ? "Say something…" : "Chat is off in bot games";
+    }
+    if (send) send.disabled = !available;
+    this.clearChat(
+      available
+        ? "No messages yet."
+        : "Chat is available in online games against another player.",
     );
   }
 
@@ -453,7 +468,8 @@ export class GameController {
   sendChat(event) {
     event.preventDefault();
     const input = $("#chat-input");
-    const message = input?.value.trim();
+    if (!input || input.disabled) return;
+    const message = input.value.trim();
     if (!message) return;
     this.emit("chatMessage", { message });
     input.value = "";

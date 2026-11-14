@@ -1,15 +1,27 @@
+<%
+  const displayName = user.displayName || user.username;
+  const timeGroups = [
+    { name: 'Bullet', tone: 'bullet', controls: [['1+0', '1 min']] },
+    { name: 'Blitz', tone: 'blitz', controls: [['3+0', '3 min'], ['3+2', '3 | 2'], ['5+0', '5 min']] },
+    { name: 'Rapid', tone: 'rapid', controls: [['10+0', '10 min'], ['15+10', '15 | 10']] },
+  ];
+  const colors = [
+    { value: 'white', label: 'White' },
+    { value: 'random', label: 'Random' },
+    { value: 'black', label: 'Black' },
+  ];
+%>
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <%- include('partials/head', { title: 'Play Chess' }) %>
+    <%- include('partials/head', { title: 'Play' }) %>
   </head>
   <body
     style="--board-light:<%= user?.settings?.boardLight || '#f0d9b5' %>; --board-dark:<%= user?.settings?.boardDark || '#b58863' %>; --hint-color:<%= user?.settings?.hintColor || '#14551e' %>;"
   >
-    <div class="page-grid"></div>
     <%- include('partials/small-device') %>
 
-    <div id="desktop-app" class="page-shell">
+    <div id="desktop-app">
       <%- include('partials/topbar', { user, active: 'play' }) %>
 
       <div id="connection-banner" class="connection-banner" role="status" hidden>
@@ -17,254 +29,266 @@
       </div>
 
       <main id="main-content" tabindex="-1">
-        <section id="landing-screen" class="landing-wrap">
-          <div class="landing-grid">
-            <div class="hero-panel panel-card">
-              <span class="eyebrow">Modern Chess Arena</span>
-              <h1 class="headline">Play sharper games in a room that feels alive.</h1>
-              <p class="hero-copy">
-                Queue for a live opponent, train against a tuned bot, and move
-                through a cleaner interface built around focus, tempo, and board
-                clarity.
-              </p>
-
-              <div class="hero-actions">
-                <button id="play-online-button" class="btn btn-primary hero-button">
-                  <span>
-                    Play Online
-                    <small>Match with a real opponent</small>
-                  </span>
-                  <strong>Live</strong>
-                </button>
-
-                <button id="play-bot-button" class="btn btn-secondary hero-button">
-                  <span>
-                    Play vs Bot
-                    <small>Unrated practice with adjustable styles</small>
-                  </span>
-                  <strong>AI</strong>
-                </button>
+        <!-- Lobby ------------------------------------------------------------ -->
+        <section id="landing-screen" class="page">
+          <div class="container">
+            <header class="lobby-greeting">
+              <div>
+                <p class="eyebrow">New game</p>
+                <h1 class="page-title">Ready to play, <%= displayName %>?</h1>
+                <p class="page-subtitle">
+                  Pick a time control and find an opponent, or warm up against the bot.
+                </p>
               </div>
-
-              <p id="lobby-stats" class="lobby-stats" aria-live="polite">Loading live stats…</p>
-
-              <div class="hero-stats">
-                <div class="hero-stat">
-                  <strong>1+0 → 15+10</strong>
-                  <span>Bullet, blitz and rapid, with increment where it counts.</span>
-                </div>
-                <div class="hero-stat">
-                  <strong>Premoves</strong>
-                  <span>Queue your reply while the opponent thinks.</span>
-                </div>
-                <div class="hero-stat">
-                  <strong>Review</strong>
-                  <span>Step through every finished game move by move.</span>
-                </div>
+              <div class="lobby-mark" aria-hidden="true">
+                <img src="/images/pieces/wN.svg" alt="" />
+                <img src="/images/pieces/bN.svg" alt="" />
               </div>
+            </header>
+
+            <div class="lobby">
+              <form id="lobby-form" class="card">
+                <div class="card-body">
+                  <section class="lobby-section" aria-labelledby="tc-title">
+                    <h2 id="tc-title" class="section-title">Time control</h2>
+                    <p class="section-subtitle">Minutes per player, plus seconds added after each move.</p>
+                    <div class="tile-groups" role="radiogroup" aria-labelledby="tc-title">
+                      <% timeGroups.forEach((group) => { %>
+                      <div>
+                        <div class="tile-group-label">
+                          <span class="speed-dot speed-<%= group.tone %>" aria-hidden="true"></span>
+                          <%= group.name %>
+                        </div>
+                        <div class="tile-grid">
+                          <% group.controls.forEach(([value, label]) => {
+                            const [minutes, increment] = value.split('+');
+                            const minuteWord = minutes === '1' ? 'minute' : 'minutes';
+                            const tip = increment === '0'
+                              ? `${minutes} ${minuteWord} for each player. The clock does not gain time after a move.`
+                              : `${minutes} ${minuteWord} for each player, plus ${increment} seconds added after every move.`;
+                          %>
+                          <label data-tip="<%= tip %>">
+                            <input
+                              type="radio"
+                              name="timeControl"
+                              value="<%= value %>"
+                              <%= value === '10+0' ? 'checked' : '' %>
+                            />
+                            <span class="tile">
+                              <strong><%= label %></strong>
+                              <small><%= value %></small>
+                            </span>
+                          </label>
+                          <% }) %>
+                        </div>
+                      </div>
+                      <% }) %>
+                    </div>
+                  </section>
+
+                  <section class="lobby-section" aria-labelledby="color-title">
+                    <h2 id="color-title" class="section-title">Play as</h2>
+                    <div class="color-choices" role="radiogroup" aria-labelledby="color-title">
+                      <% colors.forEach((color) => { %>
+                      <label>
+                        <input
+                          type="radio"
+                          name="colorPreference"
+                          value="<%= color.value %>"
+                          <%= color.value === 'random' ? 'checked' : '' %>
+                        />
+                        <span class="color-choice">
+                          <% if (color.value === 'random') { %>
+                          <span class="color-choice-kings">
+                            <img src="/images/pieces/wK.svg" alt="" />
+                            <img src="/images/pieces/bK.svg" alt="" />
+                          </span>
+                          <% } else { %>
+                          <img src="/images/pieces/<%= color.value === 'white' ? 'wK' : 'bK' %>.svg" alt="" />
+                          <% } %>
+                          <span class="color-choice-label"><%= color.label %></span>
+                        </span>
+                      </label>
+                      <% }) %>
+                    </div>
+                    <p class="field-help">Opposite preferences can't be paired, so Random matches fastest.</p>
+                  </section>
+
+                  <section class="lobby-section">
+                    <button id="play-online-button" type="button" class="btn btn-primary btn-lg btn-block play-button">
+                      Play
+                      <small><%= user.isGuest ? 'Unrated as a guest' : 'Rated against other players' %></small>
+                    </button>
+                  </section>
+
+                  <section class="lobby-section lobby-bot" aria-labelledby="bot-title">
+                    <h2 id="bot-title" class="section-title">Practice vs bot</h2>
+                    <p class="section-subtitle">Always unrated. Uses the time control and color above.</p>
+                    <div class="bot-options">
+                      <div class="field-group">
+                        <span id="difficulty-label" class="field-label">Difficulty</span>
+                        <div class="segmented" role="radiogroup" aria-labelledby="difficulty-label">
+                          <% [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']].forEach(([value, label]) => { %>
+                          <label>
+                            <input type="radio" name="difficulty" value="<%= value %>" <%= value === 'medium' ? 'checked' : '' %> />
+                            <span><%= label %></span>
+                          </label>
+                          <% }) %>
+                        </div>
+                      </div>
+                      <div class="field-group">
+                        <label for="bot-personality-select" class="field-label">Personality</label>
+                        <select id="bot-personality-select" name="personality" class="field-select">
+                          <option value="aggressive">Aggressive</option>
+                          <option value="positional" selected>Positional</option>
+                          <option value="defensive">Defensive</option>
+                        </select>
+                      </div>
+                    </div>
+                    <button id="play-bot-button" type="button" class="btn btn-secondary btn-block">
+                      Play vs bot
+                    </button>
+                  </section>
+                </div>
+              </form>
+
+              <aside class="stack">
+                <section class="card card-body rating-card" aria-label="Your stats">
+                  <div class="stat-hero">
+                    <span class="avatar avatar-lg" aria-hidden="true"><%= displayName.charAt(0) %></span>
+                    <div>
+                      <div class="muted">Rating</div>
+                      <div class="stat-rating"><%= user.rating %></div>
+                    </div>
+                  </div>
+                  <% if (user.isGuest) { %>
+                  <p class="flash flash-info">
+                    Guest games aren't saved or rated.
+                    <a href="/auth/register">Create an account</a> to track your progress.
+                  </p>
+                  <% } else { %>
+                  <div class="stat-grid">
+                    <div class="stat stat-win"><strong><%= user.wins %></strong><span>Wins</span></div>
+                    <div class="stat stat-loss"><strong><%= user.losses %></strong><span>Losses</span></div>
+                    <div class="stat stat-draw"><strong><%= user.draws %></strong><span>Draws</span></div>
+                  </div>
+                  <% } %>
+                </section>
+
+                <section class="card card-body">
+                  <h2 class="card-title card-title-gap">Live now</h2>
+                  <p class="lobby-stats">
+                    <span class="live-dot" aria-hidden="true"></span>
+                    <span id="lobby-stats" aria-live="polite">Loading…</span>
+                  </p>
+                </section>
+
+                <nav class="card card-body" aria-label="Shortcuts">
+                  <ul class="link-list">
+                    <li><a href="/games">Review your games <span>→</span></a></li>
+                    <li><a href="/leaderboard">Leaderboard <span>→</span></a></li>
+                    <li><a href="/profile">Board colors & profile <span>→</span></a></li>
+                  </ul>
+                </nav>
+              </aside>
             </div>
-
-            <aside class="sidebar-panel panel-card" aria-labelledby="game-setup-title">
-              <div class="panel-heading">
-                <h3 id="game-setup-title">Game Setup</h3>
-                <p>Your choices are remembered for next time.</p>
-              </div>
-
-              <div class="settings-grid">
-                <div class="field-group">
-                  <label for="time-control-select" class="field-label">Time Control</label>
-                  <select id="time-control-select" class="field-select">
-                    <option value="1+0">1 min · Bullet</option>
-                    <option value="3+0">3 min · Blitz</option>
-                    <option value="3+2">3 | 2 · Blitz</option>
-                    <option value="5+0">5 min · Blitz</option>
-                    <option value="10+0" selected>10 min · Rapid</option>
-                    <option value="15+10">15 | 10 · Rapid</option>
-                  </select>
-                </div>
-
-                <div class="field-group">
-                  <label for="color-preference-select" class="field-label">Play As</label>
-                  <select id="color-preference-select" class="field-select">
-                    <option value="random" selected>Random</option>
-                    <option value="white">White</option>
-                    <option value="black">Black</option>
-                  </select>
-                </div>
-
-                <div class="field-group">
-                  <label for="bot-difficulty-select" class="field-label">Bot Difficulty</label>
-                  <select id="bot-difficulty-select" class="field-select">
-                    <option value="easy">Easy</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-
-                <div class="field-group">
-                  <label for="bot-personality-select" class="field-label">Bot Personality</label>
-                  <select id="bot-personality-select" class="field-select">
-                    <option value="aggressive">Aggressive</option>
-                    <option value="positional" selected>Positional</option>
-                    <option value="defensive">Defensive</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="feature-list">
-                <div class="feature-row">
-                  <div class="feature-icon" aria-hidden="true">1</div>
-                  <div>
-                    <strong>Rated online games</strong>
-                    <span>Registered players gain and lose rating; guests and bot games are unrated.</span>
-                  </div>
-                </div>
-                <div class="feature-row">
-                  <div class="feature-icon" aria-hidden="true">2</div>
-                  <div>
-                    <strong>Fair matchmaking</strong>
-                    <span>Paired by time control, with a rating range that widens while you wait.</span>
-                  </div>
-                </div>
-                <div class="feature-row">
-                  <div class="feature-icon" aria-hidden="true">3</div>
-                  <div>
-                    <strong>Your board</strong>
-                    <span>Board colors from your profile carry into every game.</span>
-                  </div>
-                </div>
-              </div>
-            </aside>
           </div>
         </section>
 
+        <!-- Matchmaking + countdown ----------------------------------------- -->
         <section id="finding-match-screen" class="state-wrap" hidden>
-          <div class="state-panel panel-card" role="status" aria-live="polite">
+          <div class="state-panel card" role="status" aria-live="polite">
             <span class="eyebrow">Matchmaking</span>
             <h2 id="finding-match-text">Finding an opponent…</h2>
             <p id="finding-match-subtext"></p>
             <div class="loading-spinner" aria-hidden="true"></div>
-            <p id="finding-match-status"></p>
-            <button id="cancel-matchmaking-button" class="btn btn-ghost cancel-matchmaking-button">
-              Cancel
-            </button>
+            <p id="finding-match-status" class="muted"></p>
+            <button id="cancel-matchmaking-button" type="button" class="btn btn-ghost">Cancel</button>
           </div>
         </section>
 
         <section id="countdown-screen" class="state-wrap" hidden>
-          <div class="state-panel panel-card">
-            <span class="eyebrow">Ready</span>
+          <div class="state-panel card">
+            <span class="eyebrow">Get ready</span>
             <h2>Game starting in</h2>
             <div id="countdown-number" aria-live="assertive">3</div>
           </div>
         </section>
 
-        <section id="game-area" class="game-wrap game-shell" hidden aria-label="Game">
+        <!-- Game -------------------------------------------------------------- -->
+        <section id="game-area" class="page" hidden aria-label="Game">
           <div class="game-layout">
-            <div class="game-column">
-              <div id="turn-display" class="turn-display" aria-live="polite">White to move</div>
-
+            <div class="board-column">
               <% ['top', 'bottom'].forEach((slot) => { %>
-              <div id="player-<%= slot %>" class="player-card panel-card">
-                <div class="player-card-header">
-                  <div class="player-ident">
-                    <span class="player-swatch" aria-hidden="true"></span>
-                    <div class="player-text">
-                      <strong class="player-name">Player</strong>
-                      <span class="player-rating"></span>
-                    </div>
+              <% if (slot === 'bottom') { %>
+              <div id="board"></div>
+              <% } %>
+              <div id="player-<%= slot %>" class="player-strip">
+                <span class="player-swatch" aria-hidden="true"></span>
+                <div class="player-info">
+                  <div class="player-line">
+                    <strong class="player-name">Player</strong>
+                    <span class="player-rating"></span>
+                    <span class="check-badge" hidden>Check</span>
                   </div>
-                  <span class="check-badge" hidden>Check</span>
+                  <div class="captured-row">
+                    <div class="captured-pieces" aria-label="Captured pieces"></div>
+                    <span class="material-diff"></span>
+                  </div>
                 </div>
                 <div class="timer" role="timer" aria-label="Clock">10:00</div>
-                <div class="captured-wrap">
-                  <div class="captured-title">
-                    Captured <span class="material-diff"></span>
-                  </div>
-                  <div class="captured-pieces"></div>
-                </div>
               </div>
               <% }) %>
+              <p class="board-hint">
+                Drag or click to move · move during your opponent's turn to premove · right-click or Esc cancels
+              </p>
             </div>
 
-            <div class="game-column">
-              <div class="board-panel panel-card">
-                <div class="board-header">
-                  <div class="board-meta" id="game-badges"></div>
-                  <button
-                    id="flip-button"
-                    type="button"
-                    class="btn btn-ghost btn-small"
-                    aria-label="Flip board"
-                  >⇅ Flip</button>
+            <div class="side-panel-wrap">
+              <aside class="side-panel card" aria-label="Game panel">
+                <div class="side-header">
+                  <div class="side-toolbar">
+                    <div id="turn-display" class="turn-display" aria-live="polite">White to move</div>
+                    <button id="flip-button" type="button" class="btn btn-quiet btn-sm" aria-label="Flip board" title="Flip board">⇅ Flip</button>
+                  </div>
+                  <div id="game-badges" class="board-meta"></div>
                 </div>
-                <div class="board-frame">
-                  <div id="board"></div>
-                </div>
-                <p class="board-hint">
-                  Drag or click to move. Move while it's your opponent's turn to
-                  premove; right-click or press Escape to cancel.
-                </p>
-              </div>
 
-              <div class="game-controls-card panel-card">
+                <div id="move-history" class="side-moves" aria-label="Moves"></div>
+
                 <div id="draw-banner" class="draw-banner" role="alert" hidden>
                   <span id="draw-banner-text">Your opponent offers a draw.</span>
                   <div class="draw-banner-actions">
-                    <button id="draw-accept-button" type="button" class="btn btn-primary btn-small">Accept</button>
-                    <button id="draw-decline-button" type="button" class="btn btn-ghost btn-small">Decline</button>
+                    <button id="draw-accept-button" type="button" class="btn btn-primary btn-sm">Accept</button>
+                    <button id="draw-decline-button" type="button" class="btn btn-ghost btn-sm">Decline</button>
                   </div>
                 </div>
 
-                <div id="game-controls" class="controls-row">
-                  <button id="draw-offer-button" type="button" class="btn btn-info control-button">
-                    Offer draw
-                  </button>
-                  <button id="draw-withdraw-button" type="button" class="btn btn-ghost control-button" hidden>
-                    Withdraw draw offer
-                  </button>
-                  <button id="resign-button" type="button" class="btn btn-danger control-button">
-                    Resign
-                  </button>
-                </div>
-
-                <div id="post-game-controls" class="controls-row" hidden>
-                  <button id="rematch-button" type="button" class="btn btn-primary control-button">
-                    New game
-                  </button>
-                  <button id="lobby-button" type="button" class="btn btn-ghost control-button">
-                    Back to lobby
-                  </button>
-                </div>
-
                 <div id="game-message" class="message" hidden></div>
-              </div>
-            </div>
 
-            <aside class="move-history-container panel-card" aria-label="Moves and chat">
-              <div class="move-history-heading">
-                <h3>Moves</h3>
-              </div>
-              <div id="move-history" class="move-history"></div>
-
-              <div id="opponent-chat-panel" class="chat-panel" hidden>
-                <div class="move-history-heading">
-                  <h3>Chat</h3>
+                <div class="side-section">
+                  <div id="game-controls" class="controls-row">
+                    <button id="draw-offer-button" type="button" class="btn btn-ghost">½ Offer draw</button>
+                    <button id="draw-withdraw-button" type="button" class="btn btn-ghost" hidden>Withdraw offer</button>
+                    <button id="resign-button" type="button" class="btn btn-danger-outline">⚑ Resign</button>
+                  </div>
+                  <div id="post-game-controls" class="controls-row" hidden>
+                    <button id="rematch-button" type="button" class="btn btn-primary">New game</button>
+                    <button id="lobby-button" type="button" class="btn btn-ghost">Back to lobby</button>
+                  </div>
                 </div>
-                <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
-                <form id="chat-form" class="chat-form" autocomplete="off">
-                  <label for="chat-input" class="sr-only">Message</label>
-                  <input
-                    id="chat-input"
-                    class="chat-input"
-                    type="text"
-                    maxlength="300"
-                    placeholder="Type a message…"
-                  />
-                  <button type="submit" class="btn btn-info chat-send-button">Send</button>
-                </form>
-              </div>
-            </aside>
+
+                <div id="opponent-chat-panel" class="chat-panel" hidden>
+                  <div class="chat-title">Chat</div>
+                  <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+                  <form id="chat-form" class="chat-form" autocomplete="off">
+                    <label for="chat-input" class="sr-only">Message</label>
+                    <input id="chat-input" class="chat-input" type="text" maxlength="300" placeholder="Say something…" />
+                    <button type="submit" class="btn btn-ghost btn-sm">Send</button>
+                  </form>
+                </div>
+              </aside>
+            </div>
           </div>
         </section>
       </main>
