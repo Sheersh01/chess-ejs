@@ -9,6 +9,16 @@ const logger = require("./config/logger");
 const originCheck = require("./middleware/originCheck");
 const { notFound, errorHandler } = require("./middleware/errorHandler");
 
+const STATIC_PREFIXES = ["/images/", "/stylesheets/", "/javascripts/", "/sounds/", "/vendor/"];
+
+const isStaticAsset = (req) => {
+  const pathname = (req.originalUrl || req.url || "").split("?")[0];
+  return (
+    pathname === "/favicon.ico" ||
+    STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  );
+};
+
 const contentSecurityPolicy = {
   directives: {
     defaultSrc: ["'self'"],
@@ -41,7 +51,18 @@ const createApp = () => {
       referrerPolicy: { policy: "strict-origin-when-cross-origin" },
     }),
   );
-  app.use(pinoHttp({ logger, autoLogging: process.env.NODE_ENV !== "test" }));
+  app.use(
+    pinoHttp({
+      logger,
+      autoLogging: process.env.NODE_ENV !== "test",
+      // Images, CSS, and scripts succeed constantly and drown out useful logs.
+      // Failures still log, so a missing file stays visible.
+      customLogLevel(req, res, err) {
+        if (!err && res.statusCode < 400 && isStaticAsset(req)) return "silent";
+        return "info";
+      },
+    }),
+  );
   app.use(express.json({ limit: "20kb" }));
   app.use(express.urlencoded({ extended: true, limit: "20kb" }));
   app.use(cookieParser());
